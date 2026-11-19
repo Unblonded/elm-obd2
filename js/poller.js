@@ -127,7 +127,7 @@ export class Poller extends EventTarget {
   _update(v, g, bytes) {
     const s = { ts: performance.now(), status: 'ok', error: null, hz: this._hz(g) };
     try {
-      const val = evalValue(v, bytes);
+      const val = evalValue(v, bytes, this.values());
       s.value = val;
       s.label = mapLabel(v, val);
       if (v.validRange && (val < v.validRange[0] || val > v.validRange[1])) s.status = 'invalid';
@@ -136,6 +136,13 @@ export class Poller extends EventTarget {
       s.error = e.message;
     }
     this.state.set(v.id, s);
+  }
+
+  /** Latest numeric value of every OK value, keyed by id (for val.<id> in formulas). */
+  values() {
+    const o = {};
+    for (const [id, s] of this.state) if (s.status === 'ok' && typeof s.value === 'number') o[id] = s.value;
+    return o;
   }
 
   _hz(g) {

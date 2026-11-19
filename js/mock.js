@@ -113,6 +113,8 @@ export class MockTransport extends EventTarget {
     const toTcu = h === '7E1';
     if (toEngine && cmd === '0100') return this._reply(raw, ['SEARCHING...', ...this._respond('7E8', [0x41, 0x00, 0xbe, 0x3f, 0xa8, 0x13])], 300);
     if (toEngine && cmd === '010C') { const v = Math.round(s.rpm * 4); return this._reply(raw, this._respond('7E8', [0x41, 0x0c, v >> 8, v & 0xff])); }
+    if (toEngine && cmd === '0133') return this._reply(raw, this._respond('7E8', [0x41, 0x33, 100]));
+    if (toEngine && cmd === '010B') return this._reply(raw, this._respond('7E8', [0x41, 0x0b, Math.round(Math.max(35, 100 + (s.rpm - 1400) / 30))]));
     if (toEngine && cmd === '0105') return this._reply(raw, this._respond('7E8', [0x41, 0x05, Math.round(s.clt + 40)]));
     if (toEngine && cmd === '015C') return this._reply(raw, ['NO DATA'], 150);
     if (toEngine && cmd === '2201A6') return this._reply(raw, this._respond('7E8', [0x62, 0x01, 0xa6, Math.round(s.oil + 40)]));

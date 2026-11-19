@@ -200,3 +200,15 @@ body.fullscreen-dash .tabs, body.fullscreen-dash .topbar .rate { display: none; 
 @media (max-width: 440px) { .rate { display: none; } .topbar .btn { padding: 10px 12px; } }
 .banner { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .banner[hidden] { display: none; }
+
+/* gear scales to its card */
+.gear-card { container-type: size; min-height: 110px; }
+.gear-sel { font-size: min(78cqh, 42cqw); }
+.gear-num { font-size: min(36cqh, 20cqw); }
+@media (orientation: landscape) {
+  .tiles { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+  .tile { min-height: 82px; padding: 24px 10px 8px; }
+  .tile .val { font-size: clamp(26px, 8vh, 46px); }
+  .tile .badge { display: none; }
+  .tile .label { font-size: 11px; top: 8px; left: 10px; }
+}

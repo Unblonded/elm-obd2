@@ -5,14 +5,14 @@
 //   0x41 for OBD mode 01, 0x61 for KWP2000 21 xx, 0x62 for UDS 22 xx xx.
 // e.g. "010C" -> 41 0C A B  => RPM bytes are at offsets [2,3].
 //
-// Formula variables: A,B,C,D,E,F,G,H = bytes at byteOffsets[0..7],
+// Formula variables: A,B,C,D,E,F,G,H = bytes at byteOffsets[0..7], val.<id> = other values,
 //   x = A, bytes = full payload array,
 //   helpers: s8(a), u16(hi,lo), s16(hi,lo), bit(v,n)
 //
 // Values that share header+request+responseId are fetched with ONE request.
 
 export const DEFAULT_CONFIG = {
-  schema: 2,
+  schema: 3,
   maxRequestsPerSec: 18,      // hard cap on commands/sec (ATSH included)
   commandTimeoutMs: 1200,
   staleAfterMs: 3000,
@@ -81,6 +81,24 @@ export const DEFAULT_CONFIG = {
       note: 'Standard PID; likely unsupported on M278 - replace with Mercedes 21xx/22xxxx request.',
     },
     {
+      id: 'baro', name: 'Baro', display: 'none',
+      header: '7E0', request: '0133', responseId: '7E8',
+      byteOffsets: [2], formula: 'A', unit: 'kPa',
+      pollRateHz: 0.2, priority: 1,
+      enabled: true, verified: true,
+    },
+    {
+      id: 'boost', name: 'Boost', display: 'tile',
+      header: '7E0', request: '010B', responseId: '7E8',
+      byteOffsets: [2],
+      // MAP (kPa abs) minus barometric pressure, in psi. Negative = vacuum.
+      formula: '(A - (val.baro ?? 101.3)) * 0.145038',
+      unit: 'psi', decimals: 1, pollRateHz: 4, priority: 7,
+      warnAbove: 15, critAbove: 19,
+      enabled: true, verified: false,
+      note: 'Standard PID 010B (MAP). For bar use (A - (val.baro ?? 101.3)) / 100.',
+    },
+    {
       id: 'coolant', name: 'Coolant', display: 'tile',
       header: '7E0', request: '0105', responseId: '7E8',
       byteOffsets: [2], formula: 'A-40',
@@ -111,12 +129,19 @@ export function loadConfig() {
 }
 
 function migrate(c) {
-  if ((c.schema || 1) < 2) {
+  c.schema = c.schema || 1;
+  if (c.schema < 2) {
     const sel = c.values?.find((v) => v.id === 'gearSelector');
     if (sel && sel.mapDefault == null) sel.mapDefault = 'M';
     const tt = c.values?.find((v) => v.id === 'transTemp');
     if (tt && JSON.stringify(tt.byteOffsets) === '[18]') tt.byteOffsets = [13];
     c.schema = 2;
+  }
+  if (c.schema < 3) {
+    for (const id of ['baro', 'boost']) {
+      if (!c.values.some((v) => v.id === id)) c.values.push(clone(DEFAULT_CONFIG.values.find((v) => v.id === id)));
+    }
+    c.schema = 3;
     try { localStorage.setItem(KEY, JSON.stringify(c)); } catch {}
   }
   return c;
@@ -161,14 +186,15 @@ export function compileFormula(src) {
   let fn = formulaCache.get(src);
   if (!fn) {
     // eslint-disable-next-line no-new-func
-    fn = new Function('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'x', 'bytes', 's8', 'u16', 's16', 'bit',
+    fn = new Function('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'x', 'bytes', 's8', 'u16', 's16', 'bit', 'val',
       `"use strict"; return (${src});`);
     formulaCache.set(src, fn);
   }
   return fn;
 }
 
-export function evalValue(def, bytes) {
+// vals: { otherValueId: latestNumber } so formulas can combine values (val.baro).
+export function evalValue(def, bytes, vals = {}) {
   const offs = def.byteOffsets || [];
   const vars = [];
   for (const o of offs) {
@@ -177,7 +203,7 @@ export function evalValue(def, bytes) {
   }
   while (vars.length < 8) vars.push(undefined);
   const fn = compileFormula(def.formula || 'A');
-  const v = fn(...vars, vars[0], bytes, HELPERS.s8, HELPERS.u16, HELPERS.s16, HELPERS.bit);
+  const v = fn(...vars, vars[0], bytes, HELPERS.s8, HELPERS.u16, HELPERS.s16, HELPERS.bit, vals);
   return v;
 }
 
