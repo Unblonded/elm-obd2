@@ -18,10 +18,12 @@ Or with PlatformIO: `cd firmware && pio run -t upload && pio device monitor`.
 ## Use
 
 - On first start it scans and auto-connects to the first adapter that looks like an OBD dongle and remembers it.
+  After that it always reconnects straight to the remembered adapter (retrying until the car is on); RESCAN on the Link page forgets it.
   If it can't decide, the **Link** page lists nearby devices – tap yours.
 - Tap the right side of the screen for the next page, left third for the previous page (or press BOOT).
   Pages: **Drive** (RPM + gear/program) · **Gauges** (oil, trans, boost, fuel) · **Engine** (coolant, intake, oil
   pressure, battery) · **Faults** (READ / CLEAR, tap CLEAR twice to confirm) · **Link** (adapter, rescan, brightness).
+- The last page you were on and the brightness are remembered and restored at power-up.
 - Values keep their last reading if data drops out; glitches (out of range / sudden jumps) are ignored.
 - Serial log at 115200 baud shows the adapter connection and init.
 

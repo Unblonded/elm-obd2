@@ -6,6 +6,7 @@
 #include "touch.h"
 #include "ble_link.h"
 #include "obd.h"
+#include <Preferences.h>
 
 using namespace Display;
 
@@ -14,6 +15,25 @@ static int page = P_DRIVE;
 static float rpmShown = 0;
 static uint8_t brightness = 255;
 static uint32_t clearArmedAt = 0;
+
+// Remember the page and brightness across power cycles (written 2 s after the last change
+// to keep flash wear low).
+static Preferences uiPrefs;
+static int savedPage = -1;
+static uint8_t savedBrightness = 255;
+static uint32_t changedAt = 0;
+static bool autoJumped = false;  // Link page opened automatically: don't remember it
+static void saveUi() {
+  int p = autoJumped ? savedPage : page;
+  if (p == savedPage && brightness == savedBrightness) { changedAt = 0; return; }
+  if (!changedAt) { changedAt = millis(); return; }
+  if (millis() - changedAt < 2000) return;
+  if (p != savedPage) uiPrefs.putUChar("page", p);
+  if (brightness != savedBrightness) uiPrefs.putUChar("bright", brightness);
+  savedPage = p;
+  savedBrightness = brightness;
+  changedAt = 0;
+}
 
 struct Btn { int x, y, w, h; };
 static bool hit(const Btn &b, int x, int y) { return x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h; }
@@ -193,12 +213,17 @@ static void handleTouch() {
       return;
     }
   }
+  autoJumped = false;
   page = (x < SCREEN_W / 3) ? (page + P_COUNT - 1) % P_COUNT : (page + 1) % P_COUNT;
 }
 
 void setup() {
   Serial.begin(115200);
+  uiPrefs.begin("ui", false);
+  page = savedPage = min<int>(uiPrefs.getUChar("page", P_DRIVE), P_COUNT - 1);
+  brightness = savedBrightness = uiPrefs.getUChar("bright", 255);
   Display::begin();
+  Display::setBrightness(brightness);
   Touch::begin();
   Link::begin("CLS-Live");
   Obd::begin();
@@ -210,13 +235,16 @@ void loop() {
   static bool bootWasDown = false;
   handleTouch();
   bool boot = digitalRead(BOOT_BTN) == LOW;  // BOOT button = next page
-  if (boot && !bootWasDown) page = (page + 1) % P_COUNT;
+  if (boot && !bootWasDown) { autoJumped = false; page = (page + 1) % P_COUNT; }
   bootWasDown = boot;
   // go to the link page automatically when the adapter needs choosing
   static LinkState lastState = LinkState::Idle;
-  if (Obd::state != lastState && Obd::state == LinkState::PickDevice) page = P_LINK;
+  if (Obd::state != lastState && Obd::state == LinkState::PickDevice && page != P_LINK) { page = P_LINK; autoJumped = true; }
+  // once connected, go back to the remembered page
+  if (autoJumped && Obd::state == LinkState::Live) { page = savedPage; autoJumped = false; }
   lastState = Obd::state;
 
+  saveUi();
   if (millis() - lastFrame < 40) { delay(2); return; }
   lastFrame = millis();
   clear();
