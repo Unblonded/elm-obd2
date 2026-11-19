@@ -12,7 +12,7 @@
 // Values that share header+request+responseId are fetched with ONE request.
 
 export const DEFAULT_CONFIG = {
-  schema: 4,
+  schema: 5,
   maxRequestsPerSec: 18,      // hard cap on commands/sec (ATSH included)
   commandTimeoutMs: 1200,
   staleAfterMs: 3000,
@@ -105,7 +105,7 @@ export const DEFAULT_CONFIG = {
       formula: '(A - (val.baro ?? 101.3)) * 0.145038',
       unit: 'psi', decimals: 1, pollRateHz: 4, priority: 7,
       warnAbove: 15, critAbove: 19,
-      enabled: true, verified: false,
+      enabled: true, verified: true,
       note: 'Standard PID 010B (MAP). For bar use (A - (val.baro ?? 101.3)) / 100.',
     },
     {
@@ -115,6 +115,14 @@ export const DEFAULT_CONFIG = {
       unit: '°C', decimals: 0, pollRateHz: 0.5, priority: 1,
       warnAbove: 110, critAbove: 118,
       enabled: false, verified: true,
+    },
+    {
+      id: 'fuel', name: 'Fuel', display: 'tile',
+      header: '7E0', request: '222030', responseId: '7E8',
+      byteOffsets: [3, 4], formula: 'u16(A,B)*0.1*0.264172', // "Tankfuellstand" litres -> US gal
+      unit: 'gal', decimals: 1, pollRateHz: 0.2, priority: 1,
+      warnBelow: 3, critBelow: 1.5,
+      enabled: true, verified: true,
     },
     {
       id: 'oilPressure', name: 'Oil Press', display: 'tile',
@@ -186,6 +194,12 @@ function migrate(c) {
       if (!c.values.some((v) => v.id === id)) c.values.push(def(id));
     }
     c.schema = 4;
+  }
+  if (c.schema < 5) {
+    const boost = c.values.find((v) => v.id === 'boost');
+    if (boost) boost.verified = true;
+    if (!c.values.some((v) => v.id === 'fuel')) c.values.push(clone(DEFAULT_CONFIG.values.find((v) => v.id === 'fuel')));
+    c.schema = 5;
   }
   try { localStorage.setItem(KEY, JSON.stringify(c)); } catch {}
   return c;

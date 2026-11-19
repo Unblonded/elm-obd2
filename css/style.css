@@ -221,3 +221,14 @@ body.fullscreen-dash .tabs, body.fullscreen-dash .topbar .rate { display: none; 
 .finder-tbl { border-collapse: collapse; margin-top: 6px; }
 .finder-tbl td, .finder-tbl th { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; white-space: nowrap; }
 .gear-prog { position: absolute; left: 14px; bottom: 10px; color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+/* landscape: RPM | gear | tiles (2 columns, stretch to fill height) */
+@media (orientation: landscape) {
+  .dash {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, .8fr) minmax(0, 1.1fr);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "rpm gear tiles";
+  }
+  .gear-card { min-height: 0; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); align-content: stretch; }
+  .tile { min-height: 0; }
+}

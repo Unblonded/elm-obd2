@@ -118,6 +118,7 @@ export class MockTransport extends EventTarget {
     if (toEngine && cmd === '010B') return this._reply(raw, this._respond('7E8', [0x41, 0x0b, Math.round(Math.max(35, 100 + (s.rpm - 1400) / 30))]));
     if (toEngine && cmd === '2112') return this._reply(raw, this._respond('7E8', [0x61, 0x12, 0x33, 0x80, Math.round(s.clt + 40), 0x10, Math.round(30 + (Date.now() - this.t0) / 2000) & 0xff, (Date.now() / 50) & 0xff]));
     if (toEngine && cmd === '222095') return this._reply(raw, this._respond('7E8', [0x62, 0x20, 0x95, Math.round((s.oil + 48) / 0.75)]));
+    if (toEngine && cmd === '222030') { const l = Math.round(523 - (Date.now() - this.t0) / 1000); return this._reply(raw, this._respond('7E8', [0x62, 0x20, 0x30, l >> 8, l & 0xff])); }
     if (toEngine && cmd === '0105') return this._reply(raw, this._respond('7E8', [0x41, 0x05, Math.round(s.clt + 40)]));
     if (toEngine && cmd === '015C') return this._reply(raw, ['NO DATA'], 150);
     if (toEngine && cmd === '2201A6') return this._reply(raw, this._respond('7E8', [0x62, 0x01, 0xa6, Math.round(s.oil + 40)]));

@@ -277,7 +277,7 @@ elm.addEventListener('rx', () => rxTimes.push(performance.now()));
 // ---------- render loop ----------
 let lastRate = 0;
 function frame(now) {
-  dash.render(poller.state, now, config.staleAfterMs || 3000);
+  dash.render(poller.state);
   debug.render();
   if (now - lastRate > 500) {
     lastRate = now;

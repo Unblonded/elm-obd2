@@ -104,61 +104,59 @@ export class Dashboard {
     this.gauge = { def, card, val, num, min, max, red, lastText: '' };
   }
 
-  render(state, now, staleMs) {
+  // Values are never blanked or dimmed when data stops: the last good reading stays on screen.
+  render(state) {
+    const has = (s) => s && s.value != null && s.status !== 'invalid';
     // gauge
     if (this.gauge) {
       const s = state.get(this.gauge.def.id);
-      const fresh = s && s.status === 'ok' && now - s.ts < staleMs;
-      this.gauge.card.classList.toggle('stale', !fresh);
-      if (s && s.status === 'ok') this.target = s.value;
+      if (has(s)) this.target = s.value;
       this.shown += (this.target - this.shown) * 0.35;
       if (Math.abs(this.target - this.shown) < 1) this.shown = this.target;
       const { min, max, red } = this.gauge;
       const pct = Math.min(Math.max((this.shown - min) / (max - min), 0), 1) * 1000;
       this.gauge.val.setAttribute('stroke-dasharray', `${pct.toFixed(1)} 1000`);
       this.gauge.val.classList.toggle('hot', this.shown >= red);
-      const txt = s && s.value != null ? String(Math.round(this.target / 10) * 10) : '----';
+      const txt = has(s) || this.target ? String(Math.round(this.target / 10) * 10) : '----';
       if (txt !== this.gauge.lastText) { this.gauge.num.textContent = txt; this.gauge.lastText = txt; }
     }
 
     // gear
     if (this.gear) {
-      const { sel, num, selEl, numEl, card } = this.gear;
+      const { sel, num, selEl, numEl } = this.gear;
       const ss = sel && state.get(sel.id);
       const ns = num && state.get(num.id);
       let letter = '–';
-      if (ss && ss.status === 'ok') letter = ss.label ?? `?${Number(ss.value).toString(16).toUpperCase()}`;
+      if (has(ss)) letter = ss.label ?? `?${Number(ss.value).toString(16).toUpperCase()}`;
       const ps = this.gear.prog && state.get(this.gear.prog.id);
-      const progLabel = ps && ps.status === 'ok' ? (ps.label ?? '') : '';
+      const progLabel = has(ps) ? (ps.label ?? '') : '';
       if (progLabel === 'M' && letter === 'D') letter = 'M'; // manual program while in D
       const progTxt = progLabel && progLabel !== 'M' ? { S: 'Standard', C: 'Comfort', A: 'Agility' }[progLabel] || progLabel : '';
       if (this.gear.progEl.textContent !== progTxt) this.gear.progEl.textContent = progTxt;
       let gearTxt = '';
-      if (ns && ns.status === 'ok' && (letter === 'D' || letter === 'M' || !sel)) gearTxt = String(Math.round(ns.value));
+      if (has(ns) && (letter === 'D' || letter === 'M' || !sel)) gearTxt = String(Math.round(ns.value));
       if (selEl.textContent !== letter) { selEl.textContent = letter; selEl.className = `gear-sel ${/^[PRNDM]$/.test(letter) ? letter : ''}`; }
       if (numEl.textContent !== gearTxt) numEl.textContent = gearTxt;
-      const fresh = ss ? ss.status === 'ok' && now - ss.ts < staleMs : ns && now - ns.ts < staleMs;
-      card.classList.toggle('stale', !fresh);
     }
 
     // tiles
     for (const t of this.tiles.values()) {
       const s = state.get(t.def.id);
-      let valHtml = `--<span class="u">${esc(t.def.unit || '')}</span>`;
+      const d = t.def;
+      let valHtml = `--<span class="u">${esc(d.unit || '')}</span>`;
       let foot = 'waiting';
       let cls = 'card tile';
       if (s) {
-        if (s.value != null && s.status !== 'error') {
-          const disp = s.label ?? (typeof s.value === 'number' ? s.value.toFixed(t.def.decimals ?? 0) : String(s.value));
-          valHtml = `${esc(disp)}<span class="u">${esc(t.def.unit || '')}</span>`;
-          if (t.def.critAbove != null && s.value >= t.def.critAbove) cls += ' crit';
-          else if (t.def.warnAbove != null && s.value >= t.def.warnAbove) cls += ' warn';
+        if (s.value != null) {
+          const disp = s.label ?? (typeof s.value === 'number' ? s.value.toFixed(d.decimals ?? 0) : String(s.value));
+          valHtml = `${esc(disp)}<span class="u">${esc(d.unit || '')}</span>`;
+          const v = s.value;
+          if ((d.critAbove != null && v >= d.critAbove) || (d.critBelow != null && v <= d.critBelow)) cls += ' crit';
+          else if ((d.warnAbove != null && v >= d.warnAbove) || (d.warnBelow != null && v <= d.warnBelow)) cls += ' warn';
         }
-        if (s.status === 'error') { cls += ' err'; foot = s.error || 'error'; }
+        if (s.status === 'error') { if (s.value == null) cls += ' err'; foot = s.error || 'error'; }
         else if (s.status === 'invalid') foot = 'out of range';
         else foot = s.hz ? `${s.hz.toFixed(1)} Hz` : 'ok';
-        if (s.status !== 'error' && now - s.ts > staleMs) cls += ' stale';
-        if (s.status === 'error' && s.value == null) cls += ' stale';
       }
       const key = cls + valHtml + foot;
       if (key !== t.last) {
