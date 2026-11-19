@@ -60,3 +60,13 @@ Defaults marked **UNVERIFIED** (engaged gear offset, trans temp, oil temp) are p
 4. Try other local IDs (`2131`, `2132`, … on 7E1; `21xx` / `22xxxx` on 7E0) for oil temperature.
 
 Pause polling while exploring if you want a clean log.
+
+## Mercedes CBF reference
+
+`docs/med177-engine.md` and `docs/vgsnag2-transmission.md` list every data request the engine (MED17.7)
+and transmission (VGS-NAG2) ECUs define, with byte offsets and formulas in this app's syntax, ready to paste into Settings.
+They were generated from the Mercedes `.cbf` files with `tools/cbf_to_md.py` (a Python port of the relevant parts of
+[CaesarSuite](https://github.com/jglim/CaesarSuite), MIT). `.cbf` files themselves are not committed.
+
+Some transmission requests list more than one layout (different transmission variants share a request); the
+standard NAG2 layout for `21 30` is: byte 9 selector, 10 drive program, 12 actual/target gear (low/high nibble), 13 oil temp (A-50).

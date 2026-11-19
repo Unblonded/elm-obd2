@@ -12,7 +12,7 @@
 // Values that share header+request+responseId are fetched with ONE request.
 
 export const DEFAULT_CONFIG = {
-  schema: 3,
+  schema: 4,
   maxRequestsPerSec: 18,      // hard cap on commands/sec (ATSH included)
   commandTimeoutMs: 1200,
   staleAfterMs: 3000,
@@ -45,40 +45,50 @@ export const DEFAULT_CONFIG = {
       min: 0, max: 7000, redline: 6200,
       enabled: true, verified: true,
     },
+    // --- Transmission (VGS-NAG2), all from one 21 30 request; layout from the VGSNAG2 CBF ---
     {
       id: 'gearSelector', name: 'Selector', display: 'gear-selector',
       header: '7E1', request: '2130', responseId: '7E9',
-      byteOffsets: [9], formula: 'A',
-      map: { '0x0A': 'P', '0x09': 'R', '0x08': 'N', '0x07': 'D' },
-      mapDefault: 'M', // any other selector code = manual / paddle mode
+      byteOffsets: [9], formula: 'A', // "Waehlhebel intern"
+      map: {
+        '7': 'D', '8': 'N', '9': 'R', '10': 'P',
+        '1': 'M', '2': 'M', '3': 'M', '4': 'M', '5': 'M', '6': 'M', '99': 'M', '101': 'M',
+        '11': 'N', '12': 'N', '13': 'R', '249': 'D', '250': 'P', '0': '–', '255': '–',
+      },
+      pollRateHz: 3, priority: 6,
+      enabled: true, verified: true,
+    },
+    {
+      id: 'driveProgram', name: 'Program', display: 'gear-program',
+      header: '7E1', request: '2130', responseId: '7E9',
+      byteOffsets: [10], formula: 'A', // "Fahrprogramm"
+      map: { '0': 'S', '1': 'C', '2': 'A', '3': 'M' }, // Standard / Comfort / Agility / Manuell
       pollRateHz: 3, priority: 6,
       enabled: true, verified: true,
     },
     {
       id: 'gearEngaged', name: 'Gear', display: 'gear-number',
       header: '7E1', request: '2130', responseId: '7E9',
-      byteOffsets: [10], formula: 'A', validRange: [1, 7],
+      byteOffsets: [12], formula: 'A & 0x0F', validRange: [1, 7], // "Istgang" (high nibble = target gear)
       pollRateHz: 3, priority: 6,
-      enabled: true, verified: false,
-      note: 'Offset unknown - find it with the Debug repeat/diff view.',
+      enabled: true, verified: true,
     },
     {
       id: 'transTemp', name: 'Trans Temp', display: 'tile',
       header: '7E1', request: '2130', responseId: '7E9',
-      byteOffsets: [13], formula: 'A-50', // = Torque "2130 / L-50" (W204 forums)
+      byteOffsets: [13], formula: 'A-50', // "Getriebeoeltemperatur"
       unit: '°C', decimals: 0, pollRateHz: 1, priority: 2,
       warnAbove: 110, critAbove: 125,
-      enabled: true, verified: false,
-      note: 'From W204 community PID (Torque L-50); confirm on W218.',
+      enabled: true, verified: true,
     },
+    // --- Engine (MED17.7, UDS 22 xx xx); IDs from the MED177 CBF ---
     {
       id: 'oilTemp', name: 'Oil Temp', display: 'tile',
-      header: '7E0', request: '015C', responseId: '7E8',
-      byteOffsets: [2], formula: 'A-40',
+      header: '7E0', request: '222095', responseId: '7E8',
+      byteOffsets: [3], formula: 'A*0.75-48', // "Temperatursensor Oel"
       unit: '°C', decimals: 0, pollRateHz: 0.5, priority: 2,
       warnAbove: 130, critAbove: 145,
-      enabled: true, verified: false,
-      note: 'Standard PID; likely unsupported on M278 - replace with Mercedes 21xx/22xxxx request.',
+      enabled: true, verified: true,
     },
     {
       id: 'baro', name: 'Baro', display: 'none',
@@ -104,6 +114,27 @@ export const DEFAULT_CONFIG = {
       byteOffsets: [2], formula: 'A-40',
       unit: '°C', decimals: 0, pollRateHz: 0.5, priority: 1,
       warnAbove: 110, critAbove: 118,
+      enabled: false, verified: true,
+    },
+    {
+      id: 'oilPressure', name: 'Oil Press', display: 'tile',
+      header: '7E0', request: '222020', responseId: '7E8',
+      byteOffsets: [3, 4], formula: 's16(A,B)*0.5/1000', // "Oeldruck" hPa -> bar
+      unit: 'bar', decimals: 1, pollRateHz: 1, priority: 2,
+      enabled: false, verified: true,
+    },
+    {
+      id: 'intakeTemp', name: 'Intake Air', display: 'tile',
+      header: '7E0', request: '22201C', responseId: '7E8',
+      byteOffsets: [3], formula: 'A*0.75-48', // "Ansauglufttemperatur im Saugrohr"
+      unit: '°C', decimals: 0, pollRateHz: 0.5, priority: 1,
+      enabled: false, verified: true,
+    },
+    {
+      id: 'battery', name: 'Battery', display: 'tile',
+      header: '7E0', request: '222022', responseId: '7E8',
+      byteOffsets: [3, 4], formula: 'u16(A,B)*0.02355', // "Batteriespannung"
+      unit: 'V', decimals: 1, pollRateHz: 0.5, priority: 1,
       enabled: false, verified: true,
     },
   ],
@@ -142,8 +173,21 @@ function migrate(c) {
       if (!c.values.some((v) => v.id === id)) c.values.push(clone(DEFAULT_CONFIG.values.find((v) => v.id === id)));
     }
     c.schema = 3;
-    try { localStorage.setItem(KEY, JSON.stringify(c)); } catch {}
   }
+  if (c.schema < 4) {
+    // Decoded from the Mercedes CBF files: replace guessed transmission/oil definitions.
+    const def = (id) => clone(DEFAULT_CONFIG.values.find((v) => v.id === id));
+    for (const id of ['gearSelector', 'gearEngaged', 'transTemp', 'oilTemp']) {
+      const i = c.values.findIndex((v) => v.id === id);
+      if (i >= 0) c.values[i] = { ...def(id), enabled: c.values[i].enabled !== false };
+      else c.values.push(def(id));
+    }
+    for (const id of ['driveProgram', 'oilPressure', 'intakeTemp', 'battery']) {
+      if (!c.values.some((v) => v.id === id)) c.values.push(def(id));
+    }
+    c.schema = 4;
+  }
+  try { localStorage.setItem(KEY, JSON.stringify(c)); } catch {}
   return c;
 }
 

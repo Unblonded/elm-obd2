@@ -43,13 +43,14 @@ export class Dashboard {
 
     const sel = vals.find((v) => v.display === 'gear-selector');
     const num = vals.find((v) => v.display === 'gear-number');
+    const prog = vals.find((v) => v.display === 'gear-program');
     if (sel || num) {
       const card = document.createElement('div');
       card.className = 'card gear-card';
       card.innerHTML = `<div class="label">Gear</div>${(sel && !sel.verified) || (num && !num.verified) ? '<span class="badge" title="Offsets unverified">UNVERIFIED</span>' : ''}
-        <div class="gear-main"><span class="gear-sel">–</span><span class="gear-num"></span></div>`;
+        <div class="gear-main"><span class="gear-sel">–</span><span class="gear-num"></span></div><div class="gear-prog"></div>`;
       this.root.appendChild(card);
-      this.gear = { card, sel, num, selEl: card.querySelector('.gear-sel'), numEl: card.querySelector('.gear-num') };
+      this.gear = { card, sel, num, prog, selEl: card.querySelector('.gear-sel'), numEl: card.querySelector('.gear-num'), progEl: card.querySelector('.gear-prog') };
     }
 
     const tiles = vals.filter((v) => v.display === 'tile' || !v.display);
@@ -127,6 +128,11 @@ export class Dashboard {
       const ns = num && state.get(num.id);
       let letter = '–';
       if (ss && ss.status === 'ok') letter = ss.label ?? `?${Number(ss.value).toString(16).toUpperCase()}`;
+      const ps = this.gear.prog && state.get(this.gear.prog.id);
+      const progLabel = ps && ps.status === 'ok' ? (ps.label ?? '') : '';
+      if (progLabel === 'M' && letter === 'D') letter = 'M'; // manual program while in D
+      const progTxt = progLabel && progLabel !== 'M' ? { S: 'Standard', C: 'Comfort', A: 'Agility' }[progLabel] || progLabel : '';
+      if (this.gear.progEl.textContent !== progTxt) this.gear.progEl.textContent = progTxt;
       let gearTxt = '';
       if (ns && ns.status === 'ok' && (letter === 'D' || letter === 'M' || !sel)) gearTxt = String(Math.round(ns.value));
       if (selEl.textContent !== letter) { selEl.textContent = letter; selEl.className = `gear-sel ${/^[PRNDM]$/.test(letter) ? letter : ''}`; }

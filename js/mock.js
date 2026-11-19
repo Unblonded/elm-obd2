@@ -83,11 +83,12 @@ export class MockTransport extends EventTarget {
   _sim() {
     const t = (Date.now() - this.t0) / 1000;
     const phase = Math.floor(t / 8) % 6; // P R N D D M
-    const sel = [0x0a, 0x09, 0x08, 0x07, 0x07, 0x06][phase];
-    const driving = sel === 0x07 || sel === 0x06;
+    const sel = [0x0a, 0x09, 0x08, 0x07, 0x07, 0x07][phase];
+    const prog = phase === 5 ? 3 : 0; // last phase: manual program
+    const driving = sel === 0x07;
     const rpm = driving ? 1400 + 2600 * (0.5 + 0.5 * Math.sin(t * 0.9)) : 650 + 30 * Math.sin(t * 3);
     const gear = driving ? 1 + (Math.floor(t / 2) % 7) : 0;
-    return { rpm, sel, gear, atf: 50 + Math.min(40, t / 10), oil: 85 + 10 * Math.sin(t / 30), clt: 88 };
+    return { rpm, sel, prog, gear, atf: 50 + Math.min(40, t / 10), oil: 85 + 10 * Math.sin(t / 30), clt: 88 };
   }
 
   _handle(raw) {
@@ -116,6 +117,7 @@ export class MockTransport extends EventTarget {
     if (toEngine && cmd === '0133') return this._reply(raw, this._respond('7E8', [0x41, 0x33, 100]));
     if (toEngine && cmd === '010B') return this._reply(raw, this._respond('7E8', [0x41, 0x0b, Math.round(Math.max(35, 100 + (s.rpm - 1400) / 30))]));
     if (toEngine && cmd === '2112') return this._reply(raw, this._respond('7E8', [0x61, 0x12, 0x33, 0x80, Math.round(s.clt + 40), 0x10, Math.round(30 + (Date.now() - this.t0) / 2000) & 0xff, (Date.now() / 50) & 0xff]));
+    if (toEngine && cmd === '222095') return this._reply(raw, this._respond('7E8', [0x62, 0x20, 0x95, Math.round((s.oil + 48) / 0.75)]));
     if (toEngine && cmd === '0105') return this._reply(raw, this._respond('7E8', [0x41, 0x05, Math.round(s.clt + 40)]));
     if (toEngine && cmd === '015C') return this._reply(raw, ['NO DATA'], 150);
     if (toEngine && cmd === '2201A6') return this._reply(raw, this._respond('7E8', [0x62, 0x01, 0xa6, Math.round(s.oil + 40)]));
@@ -123,7 +125,8 @@ export class MockTransport extends EventTarget {
       const p = [0x61, 0x30];
       for (let i = 2; i < 30; i++) p.push((i * 37) & 0xff);
       p[9] = s.sel;
-      p[10] = s.gear;
+      p[10] = s.prog;
+      p[12] = s.gear | (s.gear << 4);
       p[13] = Math.round(s.atf + 50);
       p[5] = (Date.now() / 100) & 0xff; // a counter, to show the diff view
       return this._reply(raw, this._respond('7E9', p));
