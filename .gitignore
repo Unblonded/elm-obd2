@@ -1,1 +1,2 @@
 *.cbf
+__pycache__/
