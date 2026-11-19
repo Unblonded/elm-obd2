@@ -5,6 +5,7 @@ import { Elm327 } from './elm.js';
 import { Poller } from './poller.js';
 import { Dashboard } from './dashboard.js';
 import { DebugPanel } from './debug.js';
+import { Finder } from './finder.js';
 
 const VERSION = '1.0.0';
 const $ = (id) => document.getElementById(id);
@@ -38,6 +39,23 @@ poller.load(config);
 const dash = new Dashboard($('dash'));
 dash.build(config);
 const debug = new DebugPanel({ elm, poller, prefs, savePrefs });
+new Finder({
+  elm, poller, root: $('finder'), note: (t) => debug.note(t),
+  onUse: (f) => {
+    const c = JSON.parse(JSON.stringify(config));
+    let v = c.values.find((x) => x.id === 'oilTemp');
+    if (!v) {
+      v = { id: 'oilTemp', name: 'Oil Temp', display: 'tile', unit: '°C', decimals: 0, pollRateHz: 0.5, priority: 2, warnAbove: 130, critAbove: 145 };
+      c.values.push(v);
+    }
+    Object.assign(v, f, { enabled: true, verified: true });
+    delete v.note;
+    saveConfig(c);
+    applyConfig(c);
+    debug.note(`Oil temp set to @${f.header} ${f.request} byte ${f.byteOffsets[0]} ${f.formula}`);
+    alert(`Oil temp now uses @${f.header} ${f.request}, byte ${f.byteOffsets[0]}, ${f.formula}. Check it on the Dash.`);
+  },
+});
 
 // ---------- status UI ----------
 let connState = 'idle'; // idle | connecting | init | live | reconnecting | error

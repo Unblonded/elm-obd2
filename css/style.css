@@ -212,3 +212,11 @@ body.fullscreen-dash .tabs, body.fullscreen-dash .topbar .rate { display: none; 
   .tile .badge { display: none; }
   .tile .label { font-size: 11px; top: 8px; left: 10px; }
 }
+.finder { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+.finder summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+.finder-head { margin: 6px 0 2px; }
+.finder-steps { margin: 4px 0 8px; padding-left: 20px; color: var(--muted); }
+.finder-out { margin-top: 6px; overflow-x: auto; -webkit-user-select: text; user-select: text; }
+.finder-out > div { margin: 3px 0; }
+.finder-tbl { border-collapse: collapse; margin-top: 6px; }
+.finder-tbl td, .finder-tbl th { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; white-space: nowrap; }

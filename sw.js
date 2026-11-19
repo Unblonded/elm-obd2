@@ -1,9 +1,9 @@
 // Network-first service worker with offline fallback to cache.
-const CACHE = 'cls-live-v5';
+const CACHE = 'cls-live-v6';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/config.js', 'js/ble.js', 'js/elm.js', 'js/poller.js',
-  'js/dashboard.js', 'js/debug.js', 'js/mock.js',
+  'js/dashboard.js', 'js/debug.js', 'js/mock.js', 'js/finder.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png', 'icons/icon-maskable-512.png',
 ];
 
