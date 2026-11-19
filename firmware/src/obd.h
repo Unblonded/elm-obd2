@@ -6,7 +6,7 @@
 #include "ble_link.h"
 
 enum ValueId { V_RPM, V_SELECTOR, V_PROGRAM, V_GEAR, V_TRANS, V_OIL, V_COOLANT, V_FUEL, V_AMBIENT, V_BOOST,
-               V_INTAKE, V_BATTERY, V_OILPRESS, V_COUNT };
+               V_INTAKE, V_BATTERY, V_OUTSIDE, V_COUNT };
 
 struct Live {
   volatile float value = 0;

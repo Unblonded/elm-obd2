@@ -33,14 +33,17 @@ static const Def DEFS[] = {
   {V_COOLANT, "7E0", "222013", "7E8", 4, [](auto &b) { return b[3] * 0.75f - 48; }, 0.5, 1, -40, 140, 8},
   {V_FUEL, "7E0", "222030", "7E8", 5, [](auto &b) { return u16(b, 3) * 0.1f * 0.264172f; }, 0.2, 1, 0, 22, 1.5},
   {V_AMBIENT, "7E0", "222040", "7E8", 5, [](auto &b) { return u16(b, 3) * 0.0390625f / 10; }, 0.2, 1, 60, 110, 0},
-  {V_BOOST, "7E0", "222077", "7E8", 5,
+  // Manifold pressure after the throttle ("Saugrohrdruck", hPa abs) minus ambient -> psi.
+  // Goes negative (vacuum) at idle/cruise, positive under boost.
+  {V_BOOST, "7E0", "222018", "7E8", 5,
    [](auto &b) {
      float amb = live[V_AMBIENT].has ? live[V_AMBIENT].value : 101.3f;
      return (u16(b, 3) * 0.0078125f - amb) * 0.145038f;
    }, 4, 7, -15, 30, 12},
-  {V_INTAKE, "7E0", "22201C", "7E8", 4, [](auto &b) { return b[3] * 0.75f - 48; }, 0.5, 1, -40, 120, 15},
+  {V_INTAKE, "7E0", "222014", "7E8", 4, [](auto &b) { return b[3] * 0.75f - 48; }, 0.5, 1, -40, 120, 15},
   {V_BATTERY, "7E0", "222022", "7E8", 5, [](auto &b) { return u16(b, 3) * 0.02355f; }, 0.5, 1, 6, 17, 3},
-  {V_OILPRESS, "7E0", "222020", "7E8", 5, [](auto &b) { return s16(b, 3) * 0.5f / 1000; }, 1, 2, -0.5, 10, 4},
+  // M278 has an oil pressure switch, not a sensor (222020 reads 0) -> show outside air temp instead
+  {V_OUTSIDE, "7E0", "225030", "7E8", 4, [](auto &b) { return b[3] * 0.75f - 48; }, 0.2, 1, -40, 60, 10},
 };
 
 struct Group {

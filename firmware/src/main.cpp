@@ -25,14 +25,16 @@ static uint32_t changedAt = 0;
 static bool autoJumped = false;  // Link page opened automatically: don't remember it
 static void saveUi() {
   int p = autoJumped ? savedPage : page;
-  if (p == savedPage && brightness == savedBrightness) { changedAt = 0; return; }
-  if (!changedAt) { changedAt = millis(); return; }
-  if (millis() - changedAt < 2000) return;
-  if (p != savedPage) uiPrefs.putUChar("page", p);
-  if (brightness != savedBrightness) uiPrefs.putUChar("bright", brightness);
-  savedPage = p;
-  savedBrightness = brightness;
-  changedAt = 0;
+  if (p != savedPage) {
+    size_t n = uiPrefs.putUChar("page", p);
+    Serial.printf("[UI] page %d saved (%s)\n", p, n ? "ok" : "FAILED");
+    savedPage = p;
+  }
+  // brightness: wait until the user stops tapping through levels
+  if (brightness != savedBrightness) {
+    if (!changedAt) changedAt = millis();
+    else if (millis() - changedAt > 1500) { uiPrefs.putUChar("bright", brightness); savedBrightness = brightness; changedAt = 0; }
+  }
 }
 
 struct Btn { int x, y, w, h; };
@@ -122,11 +124,27 @@ static void drawDrive() {
   text(F_LABEL, 265, 152, Obd::programName(), C::MUTED, CENTER);
 }
 
+// Boost peak: hold the highest boost; drop back to the live value 30 s after the peak was set.
+static float boostPeak = -99;
+static uint32_t boostPeakAt = 0;
+static void updatePeak() {
+  if (!Obd::live[V_BOOST].has) return;
+  float v = Obd::live[V_BOOST].value;
+  uint32_t now = millis();
+  if (v >= boostPeak) { boostPeak = v; boostPeakAt = now; }
+  else if (now - boostPeakAt > 30000) { boostPeak = v; boostPeakAt = now; }
+}
+
 static void drawGauges() {
   const int w = 154, h = 66;
   tile(4, 22, w, h, "OIL TEMP", V_OIL, 0, "\xC2\xB0" "C", levelColor(Obd::live[V_OIL].value, 130, 145));
   tile(162, 22, w, h, "TRANS TEMP", V_TRANS, 0, "\xC2\xB0" "C", levelColor(Obd::live[V_TRANS].value, 110, 125));
   tile(4, 94, w, h, "BOOST", V_BOOST, 1, "psi", levelColor(Obd::live[V_BOOST].value, 15, 19));
+  if (Obd::live[V_BOOST].has && boostPeak > 0.5f) {
+    char pk[16];
+    snprintf(pk, sizeof(pk), "MAX %.1f", (double)boostPeak);
+    text(F_LABEL, 4 + w - 8, 94 + 16, pk, boostPeak >= 15 ? C::WARN : C::ACCENT, RIGHT);
+  }
   tile(162, 94, w, h, "FUEL", V_FUEL, 1, "gal", levelColor(Obd::live[V_FUEL].value, 3, 1.5, true));
 }
 
@@ -134,7 +152,7 @@ static void drawEngine() {
   const int w = 154, h = 66;
   tile(4, 22, w, h, "COOLANT", V_COOLANT, 0, "\xC2\xB0" "C", levelColor(Obd::live[V_COOLANT].value, 110, 118));
   tile(162, 22, w, h, "INTAKE AIR", V_INTAKE, 0, "\xC2\xB0" "C", C::TEXT);
-  tile(4, 94, w, h, "OIL PRESS", V_OILPRESS, 1, "bar", C::TEXT);
+  tile(4, 94, w, h, "OUTSIDE", V_OUTSIDE, 0, "\xC2\xB0" "C", C::TEXT);
   tile(162, 94, w, h, "BATTERY", V_BATTERY, 1, "V", levelColor(-Obd::live[V_BATTERY].value, -12.0, -11.5));
 }
 
@@ -245,6 +263,7 @@ void loop() {
   lastState = Obd::state;
 
   saveUi();
+  updatePeak();
   if (millis() - lastFrame < 40) { delay(2); return; }
   lastFrame = millis();
   clear();
