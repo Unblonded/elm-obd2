@@ -128,8 +128,8 @@ export class Dashboard {
       let letter = '–';
       if (ss && ss.status === 'ok') letter = ss.label ?? `?${Number(ss.value).toString(16).toUpperCase()}`;
       let gearTxt = '';
-      if (ns && ns.status === 'ok' && (letter === 'D' || !sel)) gearTxt = String(Math.round(ns.value));
-      if (selEl.textContent !== letter) { selEl.textContent = letter; selEl.className = `gear-sel ${/^[PRND]$/.test(letter) ? letter : ''}`; }
+      if (ns && ns.status === 'ok' && (letter === 'D' || letter === 'M' || !sel)) gearTxt = String(Math.round(ns.value));
+      if (selEl.textContent !== letter) { selEl.textContent = letter; selEl.className = `gear-sel ${/^[PRNDM]$/.test(letter) ? letter : ''}`; }
       if (numEl.textContent !== gearTxt) numEl.textContent = gearTxt;
       const fresh = ss ? ss.status === 'ok' && now - ss.ts < staleMs : ns && now - ns.ts < staleMs;
       card.classList.toggle('stale', !fresh);

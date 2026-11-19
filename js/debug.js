@@ -66,6 +66,12 @@ export class DebugPanel {
       b.onclick = () => { this.input.value = cmd; this.submit(); };
       q.appendChild(b);
     }
+    for (const [label, hdr, resp] of [['Scan TCU 21xx', '7E1', '7E9'], ['Scan ECU 21xx', '7E0', '7E8']]) {
+      const b = document.createElement('button');
+      b.className = 'btn'; b.type = 'button'; b.textContent = label;
+      b.onclick = () => this.scan(hdr, resp, b);
+      q.appendChild(b);
+    }
 
     elm.addEventListener('tx', (e) => {
       if (e.detail.source === 'poll' && !prefs.logPolling) return;
@@ -139,6 +145,33 @@ export class DebugPanel {
       this.repeatTimer = setTimeout(tick, ms);
     };
     this.repeatTimer = setTimeout(tick, ms);
+  }
+
+  /** Try every KWP2000 local ID 21 00..FF on a header; list the ones that answer. */
+  async scan(header, responseId, btn) {
+    if (this.scanning) { this.scanning = false; return; }
+    if (!this.elm.t.connected) { this.note('Not connected'); return; }
+    this.scanning = true;
+    const label = btn.textContent;
+    btn.textContent = 'Stop scan';
+    const pause = document.getElementById('pauseChk');
+    const wasPaused = pause.checked;
+    pause.checked = true; this.poller.setPaused(true);
+    const hits = [];
+    this.note(`Scanning ${header} 2100..21FF`);
+    for (let id = 0; id < 256 && this.scanning && this.elm.t.connected; id++) {
+      const req = `21${toHex(id)}`;
+      const res = await this.elm.send(req, { header, source: 'term', timeout: 800 });
+      const msgs = (res.msgs || []).filter((m) => !responseId || m.header === responseId || !m.header);
+      const pos = msgs.find((m) => m.bytes[0] === 0x61 && m.bytes[1] === id);
+      if (pos) hits.push({ req, bytes: pos.bytes });
+      this.parsedEl.innerHTML = `<div class="msg-h">Scanning ${header} ${req} · ${hits.length} found</div>` + hits.map((h) =>
+        `<div><span class="tx">@${header} ${h.req}</span> · ${h.bytes.length}B · ${h.bytes.map(toHex).join(' ')}</div>`).join('');
+    }
+    this.note(`Scan ${header} done: ${hits.map((h) => h.req).join(' ') || 'nothing'}`);
+    this.scanning = false;
+    btn.textContent = label;
+    pause.checked = wasPaused; this.poller.setPaused(wasPaused);
   }
 
   stopRepeat() { clearTimeout(this.repeatTimer); this.repeatTimer = null; }

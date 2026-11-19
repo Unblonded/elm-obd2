@@ -12,7 +12,7 @@
 // Values that share header+request+responseId are fetched with ONE request.
 
 export const DEFAULT_CONFIG = {
-  schema: 1,
+  schema: 2,
   maxRequestsPerSec: 18,      // hard cap on commands/sec (ATSH included)
   commandTimeoutMs: 1200,
   staleAfterMs: 3000,
@@ -50,6 +50,7 @@ export const DEFAULT_CONFIG = {
       header: '7E1', request: '2130', responseId: '7E9',
       byteOffsets: [9], formula: 'A',
       map: { '0x0A': 'P', '0x09': 'R', '0x08': 'N', '0x07': 'D' },
+      mapDefault: 'M', // any other selector code = manual / paddle mode
       pollRateHz: 3, priority: 6,
       enabled: true, verified: true,
     },
@@ -64,11 +65,11 @@ export const DEFAULT_CONFIG = {
     {
       id: 'transTemp', name: 'Trans Temp', display: 'tile',
       header: '7E1', request: '2130', responseId: '7E9',
-      byteOffsets: [18], formula: 'A-50',
+      byteOffsets: [13], formula: 'A-50', // = Torque "2130 / L-50" (W204 forums)
       unit: '°C', decimals: 0, pollRateHz: 1, priority: 2,
       warnAbove: 110, critAbove: 125,
       enabled: true, verified: false,
-      note: 'Request/offset/formula TBD.',
+      note: 'From W204 community PID (Torque L-50); confirm on W218.',
     },
     {
       id: 'oilTemp', name: 'Oil Temp', display: 'tile',
@@ -99,7 +100,7 @@ export function loadConfig() {
   try {
     const s = localStorage.getItem(KEY);
     if (s) {
-      const c = JSON.parse(s);
+      const c = migrate(JSON.parse(s));
       validateConfig(c);
       return c;
     }
@@ -107,6 +108,18 @@ export function loadConfig() {
     console.warn('Config load failed, using defaults', e);
   }
   return clone(DEFAULT_CONFIG);
+}
+
+function migrate(c) {
+  if ((c.schema || 1) < 2) {
+    const sel = c.values?.find((v) => v.id === 'gearSelector');
+    if (sel && sel.mapDefault == null) sel.mapDefault = 'M';
+    const tt = c.values?.find((v) => v.id === 'transTemp');
+    if (tt && JSON.stringify(tt.byteOffsets) === '[18]') tt.byteOffsets = [13];
+    c.schema = 2;
+    try { localStorage.setItem(KEY, JSON.stringify(c)); } catch {}
+  }
+  return c;
 }
 
 export function saveConfig(cfg) {
@@ -173,7 +186,7 @@ export function mapLabel(def, v) {
   for (const [k, label] of Object.entries(def.map)) {
     if (Number(k) === v) return label;
   }
-  return null;
+  return def.mapDefault ?? null;
 }
 
 const DEFAULT_PREFS = { demo: false, keepAwake: true, logPolling: true, logRaw: false };

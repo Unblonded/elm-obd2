@@ -82,9 +82,9 @@ export class MockTransport extends EventTarget {
 
   _sim() {
     const t = (Date.now() - this.t0) / 1000;
-    const phase = Math.floor(t / 8) % 6; // P R N D D D
-    const sel = [0x0a, 0x09, 0x08, 0x07, 0x07, 0x07][phase];
-    const driving = sel === 0x07;
+    const phase = Math.floor(t / 8) % 6; // P R N D D M
+    const sel = [0x0a, 0x09, 0x08, 0x07, 0x07, 0x06][phase];
+    const driving = sel === 0x07 || sel === 0x06;
     const rpm = driving ? 1400 + 2600 * (0.5 + 0.5 * Math.sin(t * 0.9)) : 650 + 30 * Math.sin(t * 3);
     const gear = driving ? 1 + (Math.floor(t / 2) % 7) : 0;
     return { rpm, sel, gear, atf: 50 + Math.min(40, t / 10), oil: 85 + 10 * Math.sin(t / 30), clt: 88 };
@@ -121,10 +121,11 @@ export class MockTransport extends EventTarget {
       for (let i = 2; i < 30; i++) p.push((i * 37) & 0xff);
       p[9] = s.sel;
       p[10] = s.gear;
-      p[18] = Math.round(s.atf + 50);
+      p[13] = Math.round(s.atf + 50);
       p[5] = (Date.now() / 100) & 0xff; // a counter, to show the diff view
       return this._reply(raw, this._respond('7E9', p));
     }
+    if (toTcu && cmd === '2131') return this._reply(raw, this._respond('7E9', [0x61, 0x31, 1, 2, 3]));
     if (toTcu && /^21/.test(cmd)) return this._reply(raw, this._respond('7E9', [0x7f, 0x21, 0x12]));
     if (/^1[0-9A-F]/.test(cmd) || /^3E/.test(cmd)) {
       const id = toTcu ? '7E9' : '7E8';

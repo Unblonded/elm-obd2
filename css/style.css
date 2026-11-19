@@ -130,6 +130,7 @@ body.fullscreen-dash .tabs, body.fullscreen-dash .topbar .rate { display: none; 
 .gear-sel.R { color: var(--crit); }
 .gear-sel.N { color: var(--warn); }
 .gear-sel.D { color: var(--ok); }
+.gear-sel.M { color: var(--accent-2); }
 
 .tiles { grid-area: tiles; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
 .tile { padding: 30px 14px 12px; min-height: 104px; display: flex; flex-direction: column; justify-content: flex-end; }
