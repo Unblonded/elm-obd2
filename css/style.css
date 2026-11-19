@@ -197,3 +197,5 @@ body.fullscreen-dash .tabs, body.fullscreen-dash .topbar .rate { display: none; 
 #cfgMsg.err { color: var(--crit); }
 .tile .badge { top: auto; bottom: 10px; }
 @media (max-width: 440px) { .rate { display: none; } .topbar .btn { padding: 10px 12px; } }
+.banner { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.banner[hidden] { display: none; }

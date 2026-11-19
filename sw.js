@@ -1,5 +1,5 @@
 // Network-first service worker with offline fallback to cache.
-const CACHE = 'cls-live-v1';
+const CACHE = 'cls-live-v2';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/config.js', 'js/ble.js', 'js/elm.js', 'js/poller.js',

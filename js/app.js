@@ -51,10 +51,47 @@ function setStatus(state, text, sub = '') {
   $('btnConnect').classList.toggle('primary', !busy);
   $('btnConnect').classList.toggle('danger', busy);
 }
-function banner(msg) {
+function banner(msg, withLink = false) {
   const b = $('banner');
   b.hidden = !msg;
   b.textContent = msg || '';
+  if (msg && withLink) {
+    const btn = document.createElement('button');
+    btn.className = 'btn sm';
+    btn.style.marginLeft = '8px';
+    btn.textContent = 'Copy link';
+    btn.onclick = () => navigator.clipboard?.writeText(location.href).then(() => { btn.textContent = 'Copied'; }, () => {});
+    b.appendChild(btn);
+  }
+  if (msg) {
+    const x = document.createElement('button');
+    x.className = 'btn sm';
+    x.style.marginLeft = '8px';
+    x.textContent = '✕';
+    x.onclick = () => banner('');
+    b.appendChild(x);
+  }
+}
+
+// Some browsers (e.g. Bluefy on iOS) inject navigator.bluetooth after the page starts,
+// so poll for it briefly instead of deciding at load time.
+function waitForBluetooth(ms) {
+  return new Promise((resolve) => {
+    if (bluetoothAvailable()) return resolve(true);
+    const t0 = performance.now();
+    const iv = setInterval(() => {
+      if (bluetoothAvailable() || performance.now() - t0 > ms) { clearInterval(iv); resolve(bluetoothAvailable()); }
+    }, 100);
+  });
+}
+function isStandalone() {
+  return navigator.standalone === true || matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches;
+}
+function noBluetoothMessage() {
+  if (isIOS() && isStandalone()) return ['Home-screen apps on iPhone run on Safari\'s engine, which has no Bluetooth. Open this link in the Bluefy app instead.', true];
+  if (isIOS()) return ['This browser has no Web Bluetooth. Open this link in the Bluefy app (free, App Store).', true];
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return ['Web Bluetooth needs HTTPS. Open the https:// address.', false];
+  return ['Web Bluetooth unavailable. Use Chrome on desktop/Android, or enable Demo mode in Settings.', false];
 }
 
 transport.addEventListener('status', (e) => { if (connState !== 'live') setStatus(connState === 'idle' ? 'connecting' : connState, e.detail); });
@@ -113,10 +150,8 @@ $('btnConnect').onclick = async () => {
       await mock.connect();
       return;
     }
-    if (!bluetoothAvailable()) {
-      banner(isIOS()
-        ? 'Safari has no Web Bluetooth. Open this page in the Bluefy browser.'
-        : 'Web Bluetooth unavailable. Use Chrome (desktop/Android) over HTTPS, or enable Demo mode in Settings.');
+    if (!(await waitForBluetooth(1500))) {
+      banner(...noBluetoothMessage());
       setStatus('error', 'No Web Bluetooth');
       return;
     }
@@ -210,7 +245,8 @@ $('cfgImport').onchange = async (e) => {
   catch (err) { cfgMsg(`Import failed: ${err.message}`, false); }
   e.target.value = '';
 };
-$('about').textContent = `CLS Live v${VERSION} · ${bluetoothAvailable() ? 'Web Bluetooth available' : 'no Web Bluetooth in this browser'}`;
+const setAbout = () => { $('about').textContent = `CLS Live v${VERSION} · ${bluetoothAvailable() ? 'Web Bluetooth available' : 'no Web Bluetooth in this browser'}`; };
+setAbout();
 
 // ---------- command rate ----------
 const rxTimes = [];
@@ -232,13 +268,16 @@ requestAnimationFrame(frame);
 
 // ---------- startup ----------
 setStatus('idle', 'Disconnected', prefs.demo ? 'demo mode' : '');
-if (!prefs.demo && !bluetoothAvailable()) {
-  banner(isIOS() ? 'Safari has no Web Bluetooth - open this page in the Bluefy browser.' : 'Web Bluetooth not available in this browser. Demo mode is in Settings.');
-}
-// Silent reconnect to a previously-permitted adapter (Chrome with getDevices support).
-if (!prefs.demo && bluetoothAvailable()) {
-  ble.restore().then(async (ok) => {
-    if (!ok || connState !== 'idle') return;
+waitForBluetooth(3000).then((ok) => {
+  setAbout();
+  if (prefs.demo) return;
+  if (!ok) {
+    if (connState === 'idle') banner(...noBluetoothMessage());
+    return;
+  }
+  // Silent reconnect to a previously-permitted adapter (Chrome with getDevices support).
+  ble.restore().then(async (restored) => {
+    if (!restored || connState !== 'idle') return;
     transport.use(ble);
     setStatus('connecting', `Reconnecting to ${ble.name}…`);
     try {
@@ -248,7 +287,7 @@ if (!prefs.demo && bluetoothAvailable()) {
       debug.note(`Auto-connect skipped: ${e.message}`);
     }
   });
-}
+});
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
