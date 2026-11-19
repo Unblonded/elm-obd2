@@ -1,2 +1,3 @@
 *.cbf
 __pycache__/
+firmware/.pio/
