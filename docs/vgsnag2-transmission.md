@@ -5,7 +5,7 @@ Byte offsets use the app convention (index 0 = positive response SID). Formulas 
 
 | request | bytes | formula | unit | name | values |
 |---|---|---|---|---|---|
-| `1A87` | 3 | `A` |  | DCX-Identifikation: Lieferantenkennung | 0=*; 1=Becker; 2=Blaupunkt; 3=Bosch; 4=MB; 5=HuF; 6=Kammerer; 7=Kostal; 8=Siemens; 9=Stribel; 10=MicroHeat; 11=JATCO |
+| `1A87` | 3 | `A` |  | DCX-Identifikation: Lieferantenkennung | 0=*; 1=Becker; 2=Blaupunkt; 3=Bosch; 4=MB; 5=HuF; 6=Kammerer; 7=Kostal; 8=Siemens; 9=Stribel; 10=MicroHeat; 11=JATCO; 16=SWF; 17=VDO; 18=Webasto; 19=Dornier; 20=TEG; 21=Hella; 22=Lucas; 23=GKR |
 | `1A87` | 4 | `bit(A,7)` |  | DCX-Identifikation: Produktion/Entwicklungsstatus | 0=in Serienproduktion; 1=in Entwicklung |
 | `1A87` | 4 | `((A>>0)&127)` |  | DCX-Identifikation: Steuergeräte-Identifikation |  |
 | `1A87` | 5 | `A` |  | DCX-Identifikation: Diagnosekennung |  |
@@ -29,12 +29,12 @@ Byte offsets use the app convention (index 0 = positive response SID). Formulas 
 | `2130` | 6 | `A*0.04-1.5` | bar | End of line Test: Istvorsteuerdruck NAK |  |
 | `2130` | 7 | `A*2-50` | °C | End of line Test: Lamellentemperatur der NAK |  |
 | `2130` | 8 | `A` |  | End of line Test: Ueberbrueckungskupplungs Status | 0=offen; 1=offen -> schlupfend; 2=schlupfend -> offen; 3=schlupfend; 4=schlupfend -> geschlossen; 5=geschlossen -> schlupfend; 6=geschlossen |
-| `2130` | 8 | `A` |  | End of line Test: Funktionsstatus NAK | 0=FKO_ST_START; 1=FKO_ST_R_ESS; 2=FKO_ST_PN_ESS; 3=FKO_ST_D_ESS; 4=FKO_ST_KRI; 5=FKO_ST_STS; 6=FKO_ST_ANF; 7=FKO_ST_ANH; 8=FKO_ST_SRS; 9=FKO_ST_KWS; 10=FKO_ST_ZUS; 11=FKO_ST_SKN |
-| `2130` | 9 | `A` |  | End of line Test: Wählhebel intern | 0=Initialwert; 1=1; 2=2; 3=3; 4=4; 5=5; 6=6; 7=D; 8=N; 9=R; 10=P; 11=N-D |
+| `2130` | 8 | `A` |  | End of line Test: Funktionsstatus NAK | 0=FKO_ST_START; 1=FKO_ST_R_ESS; 2=FKO_ST_PN_ESS; 3=FKO_ST_D_ESS; 4=FKO_ST_KRI; 5=FKO_ST_STS; 6=FKO_ST_ANF; 7=FKO_ST_ANH; 8=FKO_ST_SRS; 9=FKO_ST_KWS; 10=FKO_ST_ZUS; 11=FKO_ST_SKN; 12=FKO_ST_DIR |
+| `2130` | 9 | `A` |  | End of line Test: Wählhebel intern | 0=Initialwert; 1=1; 2=2; 3=3; 4=4; 5=5; 6=6; 7=D; 8=N; 9=R; 10=P; 11=N-D; 12=R-N; 13=P-R; 99=Minus; 101=Plus; 249=over D; 250=over P; 255=inaktiv |
 | `2130` | 10 | `A` |  | End of line Test: Fahrprogramm | 0=Standard; 1=Comfort; 2=Agility; 3=Manuell |
-| `2130` | 11 | `A` |  | End of line Test: Gangerkennung | 0=inaktiv; 1=1. Gang; 2=2. Gang; 3=3. Gang; 4=4. Gang; 5=5. Gang; 6=6. Gang; 7=7. Gang; 9=1. Rückwärtsgang; 10=2. Rückwärtsgang; 11=3. Rückwärtsgang; 88=in Berechnung |
-| `2130` | 12 | `((A>>0)&15)` |  | End of line Test: Istgang | 0=Neutral; 1=1. Gang; 2=2. Gang; 3=3. Gang; 4=4. Gang; 5=5. Gang; 6=6. Gang; 7=7. Gang; 8-9=not defined; 10=3. Rückwärtsgang; 11=1. Rückwärtsgang; 12=2. Rückwärtsgang |
-| `2130` | 12 | `((A>>4)&15)` |  | End of line Test: Zielgang | 0=Neutral; 1=1.Gang; 2=2.Gang; 3=3.Gang; 4=4.Gang; 5=5.Gang; 6=6.Gang; 7=7.Gang; 8-9=not defined; 10=3.Rückwärtsgang; 11=1.Rückwärtsgang; 12=2.Rückwärtsgang |
+| `2130` | 11 | `A` |  | End of line Test: Gangerkennung | 0=inaktiv; 1=1. Gang; 2=2. Gang; 3=3. Gang; 4=4. Gang; 5=5. Gang; 6=6. Gang; 7=7. Gang; 9=1. Rückwärtsgang; 10=2. Rückwärtsgang; 11=3. Rückwärtsgang; 88=in Berechnung; 255=unplausibel |
+| `2130` | 12 | `((A>>0)&15)` |  | End of line Test: Istgang | 0=Neutral; 1=1. Gang; 2=2. Gang; 3=3. Gang; 4=4. Gang; 5=5. Gang; 6=6. Gang; 7=7. Gang; 8-9=not defined; 10=3. Rückwärtsgang; 11=1. Rückwärtsgang; 12=2. Rückwärtsgang; 13=P; 14=kraftfrei; 15=Signal nicht vorhanden |
+| `2130` | 12 | `((A>>4)&15)` |  | End of line Test: Zielgang | 0=Neutral; 1=1.Gang; 2=2.Gang; 3=3.Gang; 4=4.Gang; 5=5.Gang; 6=6.Gang; 7=7.Gang; 8-9=not defined; 10=3.Rückwärtsgang; 11=1.Rückwärtsgang; 12=2.Rückwärtsgang; 13=Parkposition; 14=kraftfrei; 15=Signal nicht vorhanden |
 | `2130` | 13 | `A-50` | °C | End of line Test: Getriebeöltemperatur |  |
 | `2130` | 14,15 | `s16(A,B)` | Nm | End of line Test: Motormoment |  |
 | `2130` | 16,17 | `s16(A,B)` | Nm | End of line Test: gewandeltes Moment |  |
@@ -133,7 +133,7 @@ Byte offsets use the app convention (index 0 = positive response SID). Formulas 
 | `2134` | 8,9 | `u16(A,B)*0.001` | V | Spannungen: Negative PLCD-Spannung |  |
 | `2134` | 8,9 | `u16(A,B)*0.024414` | % | Spannungen_VGS3: WBS-Position(roh) |  |
 | `2134` | 10 | `A` |  | Spannungen: Gangwahlsensor gefiltert |  |
-| `2134` | 10 | `A` |  | Spannungen_VGS3: Gangwahlsensor Rohsignal | 0=Initialwert; 1=1; 2=2; 3=3; 4=4; 5=5; 6=6; 7=D; 8=N; 9=R; 10=P; 11=N-D |
+| `2134` | 10 | `A` |  | Spannungen_VGS3: Gangwahlsensor Rohsignal | 0=Initialwert; 1=1; 2=2; 3=3; 4=4; 5=5; 6=6; 7=D; 8=N; 9=R; 10=P; 11=N-D; 12=R-N; 13=P-R; 99=Minus; 101=Plus; 249=over D; 250=over P; 255=inaktiv |
 | `2134` | 11 | `A` |  | Spannungen: Gangwahlsensor Rohsignal |  |
 | `2134` | 11,12 | `s16(A,B)*0.1` | °C | Spannungen_VGS3: Getriebeöltemperatur |  |
 | `2134` | 12 | `A-50` | °C | Spannungen: Getriebeöltemperatur |  |
@@ -183,14 +183,14 @@ Byte offsets use the app convention (index 0 = positive response SID). Formulas 
 | `21DA` | 14,15 | `u16(A,B)*2` | km | Schaltqualitaet: Laufleistung bei Reset ATZ Buffer 1 |  |
 | `21DA` | 16 | `A` |  | Schaltqualitaet: Schlechteste Schaltung 1_Note | 1=Note 1; 2=Note 2; 3=Note 3; 4=Note 4; 5=Note 5; 6=Note 6; 7=Note 7; 8=Note 8; 9=Note 9; 10=Note 10 |
 | `21DA` | 17 | `((A>>2)&3)` |  | Schaltqualitaet: Schaltung 1_Art | 0=Zug-Hoch; 1=Schub-Hoch; 2=Zug-Rück; 3=Schub-Rück |
-| `21DA` | 17 | `((A>>4)&15)` |  | Schaltqualitaet: Schaltung 1_Index | 0=1-2; 1=2-3; 2=3-4; 3=4-5; 4=5-6; 5=6-7; 6=1-3; 7=2-4; 8=3-5; 9=4-6; 10=5-7; 11=2-5 |
+| `21DA` | 17 | `((A>>4)&15)` |  | Schaltqualitaet: Schaltung 1_Index | 0=1-2; 1=2-3; 2=3-4; 3=4-5; 4=5-6; 5=6-7; 6=1-3; 7=2-4; 8=3-5; 9=4-6; 10=5-7; 11=2-5; 12=3-6; 13=4-7; 14=2-6; 15=3-7 |
 | `21DA` | 17 | `((A>>0)&3)` |  | Schaltqualitaet: Schaltung 1_Typ | 1=Überhöhung; 2=Freigabe; 3=Ausroll |
 | `21DA` | 18,19 | `u16(A,B)` | 1/min | Schaltqualitaet: Schlechteste Schaltung 1_Abtriebsdrehzahl |  |
 | `21DA` | 20,21 | `s16(A,B)` | Nm | Schaltqualitaet: Schlechteste Schaltung 1_Turbinenmoment |  |
 | `21DA` | 22,23 | `u16(A,B)*2` | km | Schaltqualitaet: Schlechteste Schaltung 1_Laufleistung |  |
 | `21DA` | 24 | `A` |  | Schaltqualitaet: Schlechteste Schaltung 2_Note | 1=Note 1; 2=Note 2; 3=Note 3; 4=Note 4; 5=Note 5; 6=Note 6; 7=Note 7; 8=Note 8; 9=Note 9; 10=Note 10 |
 | `21DA` | 25 | `((A>>2)&3)` |  | Schaltqualitaet: Schaltung 2_Art | 0=Zug-Hoch; 1=Schub-Hoch; 2=Zug-Rück; 3=Schub-Rück |
-| `21DA` | 25 | `((A>>4)&15)` |  | Schaltqualitaet: Schaltung 2_Index | 0=1-2; 1=2-3; 2=3-4; 3=4-5; 4=5-6; 5=6-7; 6=1-3; 7=2-4; 8=3-5; 9=4-6; 10=5-7; 11=2-5 |
+| `21DA` | 25 | `((A>>4)&15)` |  | Schaltqualitaet: Schaltung 2_Index | 0=1-2; 1=2-3; 2=3-4; 3=4-5; 4=5-6; 5=6-7; 6=1-3; 7=2-4; 8=3-5; 9=4-6; 10=5-7; 11=2-5; 12=3-6; 13=4-7; 14=2-6; 15=3-7 |
 | `21DA` | 25 | `((A>>0)&3)` |  | Schaltqualitaet: Schaltung 2_Typ | 1=Überhöhung; 2=Freigabe; 3=Ausroll |
 | `21DA` | 26,27 | `u16(A,B)` | 1/min | Schaltqualitaet: Schlechteste Schaltung 2_Abtriebsdrehzahl |  |
 | `21DA` | 28,29 | `s16(A,B)` | Nm | Schaltqualitaet: Schlechteste Schaltung 2_Turbinenmoment |  |

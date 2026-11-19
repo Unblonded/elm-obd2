@@ -131,7 +131,7 @@ export class Dashboard {
       const ps = this.gear.prog && state.get(this.gear.prog.id);
       const progLabel = has(ps) ? (ps.label ?? '') : '';
       if (progLabel === 'M' && letter === 'D') letter = 'M'; // manual program while in D
-      const progTxt = progLabel && progLabel !== 'M' ? { S: 'Standard', C: 'Comfort', A: 'Agility' }[progLabel] || progLabel : '';
+      const progTxt = letter === 'M' ? 'Manual' : progLabel ? { S: 'Sport', C: 'Comfort', A: 'Agility', M: 'Manual' }[progLabel] || progLabel : '';
       if (this.gear.progEl.textContent !== progTxt) this.gear.progEl.textContent = progTxt;
       let gearTxt = '';
       if (has(ns) && (letter === 'D' || letter === 'M' || !sel)) gearTxt = String(Math.round(ns.value));

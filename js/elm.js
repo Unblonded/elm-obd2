@@ -172,6 +172,7 @@ export class Elm327 extends EventTarget {
     this.recovering = false;
     this.version = '';
     this.unsupported = new Set();
+    this.noCountDigit = false;
     this.sentHeaderInit = new Set();
     this.headerInit = {};
     this._onData = this._onData.bind(this);
@@ -328,7 +329,15 @@ export class Elm327 extends EventTarget {
 
   /** Send a diagnostic request to header and return matched positive response. */
   async request(header, request, responseId, opts = {}) {
-    const res = await this.send(request, { ...opts, header, cra: opts.useCRA ? (responseId || '') : null });
+    const send = { ...opts, header, cra: opts.useCRA ? (responseId || '') : null };
+    // ELM "response count" digit: "2220951" = return as soon as 1 reply arrived (no timeout wait).
+    const useCount = opts.single && !this.noCountDigit;
+    let res = await this.send(useCount ? `${request}1` : request, send);
+    if (useCount && res.errors.includes('UNKNOWN_CMD')) {
+      this.noCountDigit = true;
+      this._emit('note', 'Adapter does not support the response-count digit; disabled');
+      res = await this.send(request, send);
+    }
     if (res.error) return { ok: false, error: res.error, res };
     const m = matchResponse(res.msgs || [], request, responseId);
     m.res = res;

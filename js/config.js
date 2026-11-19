@@ -5,6 +5,8 @@
 //   0x41 for OBD mode 01, 0x61 for KWP2000 21 xx, 0x62 for UDS 22 xx xx.
 // e.g. "010C" -> 41 0C A B  => RPM bytes are at offsets [2,3].
 //
+// range: [min,max] plausible values; maxJump: max change between readings (bigger jumps need
+//   a 2nd confirming reading, otherwise they're treated as glitches and the last value is kept).
 // Formula variables: A,B,C,D,E,F,G,H = bytes at byteOffsets[0..7], val.<id> = other values,
 //   x = A, bytes = full payload array,
 //   helpers: s8(a), u16(hi,lo), s16(hi,lo), bit(v,n)
@@ -12,11 +14,14 @@
 // Values that share header+request+responseId are fetched with ONE request.
 
 export const DEFAULT_CONFIG = {
-  schema: 5,
+  schema: 6,
   maxRequestsPerSec: 18,      // hard cap on commands/sec (ATSH included)
   commandTimeoutMs: 1200,
   staleAfterMs: 3000,
-  useCRA: false,              // send ATCRA<responseId> filter (auto-disabled if adapter returns '?')
+  useCRA: false,
+  batchUds: true,             // read several engine DIDs in one "22 xxxx yyyy ..." request
+  maxDidsPerRequest: 6,
+  fastResponse: true,         // append ELM response-count digit for single-frame replies              // send ATCRA<responseId> filter (auto-disabled if adapter returns '?')
 
   init: [
     { cmd: 'ATZ', timeout: 4000, delayAfterMs: 500 },
@@ -39,10 +44,11 @@ export const DEFAULT_CONFIG = {
   values: [
     {
       id: 'rpm', name: 'Engine RPM', display: 'gauge',
-      header: '7E0', request: '010C', responseId: '7E8',
-      byteOffsets: [2, 3], formula: '(A*256+B)/4',
+      header: '7E0', request: '222000', responseId: '7E8',
+      byteOffsets: [3, 4], formula: 'u16(A,B)*0.25', // MED17.7 "Kurbelwellendrehzahl" (batched with other DIDs)
       unit: 'rpm', decimals: 0, pollRateHz: 8, priority: 10,
       min: 0, max: 7000, redline: 6200,
+      range: [0, 8000], maxJump: 3000,
       enabled: true, verified: true,
     },
     // --- Transmission (VGS-NAG2), all from one 21 30 request; layout from the VGSNAG2 CBF ---
@@ -79,6 +85,7 @@ export const DEFAULT_CONFIG = {
       byteOffsets: [13], formula: 'A-50', // "Getriebeoeltemperatur"
       unit: '°C', decimals: 0, pollRateHz: 1, priority: 2,
       warnAbove: 110, critAbove: 125,
+      range: [-40, 160], maxJump: 8,
       enabled: true, verified: true,
     },
     // --- Engine (MED17.7, UDS 22 xx xx); IDs from the MED177 CBF ---
@@ -88,32 +95,34 @@ export const DEFAULT_CONFIG = {
       byteOffsets: [3], formula: 'A*0.75-48', // "Temperatursensor Oel"
       unit: '°C', decimals: 0, pollRateHz: 0.5, priority: 2,
       warnAbove: 130, critAbove: 145,
+      range: [-40, 170], maxJump: 8,
       enabled: true, verified: true,
     },
     {
-      id: 'baro', name: 'Baro', display: 'none',
-      header: '7E0', request: '0133', responseId: '7E8',
-      byteOffsets: [2], formula: 'A', unit: 'kPa',
-      pollRateHz: 0.2, priority: 1,
+      id: 'ambient', name: 'Ambient', display: 'none',
+      header: '7E0', request: '222040', responseId: '7E8',
+      byteOffsets: [3, 4], formula: 'u16(A,B)*0.0390625/10', // "Umgebungsdruck" hPa -> kPa
+      unit: 'kPa', pollRateHz: 0.2, priority: 1, range: [60, 110],
       enabled: true, verified: true,
     },
     {
       id: 'boost', name: 'Boost', display: 'tile',
-      header: '7E0', request: '010B', responseId: '7E8',
-      byteOffsets: [2],
-      // MAP (kPa abs) minus barometric pressure, in psi. Negative = vacuum.
-      formula: '(A - (val.baro ?? 101.3)) * 0.145038',
+      header: '7E0', request: '222077', responseId: '7E8',
+      byteOffsets: [3, 4],
+      // "Ladedrucksensor P2 vor Drosselklappe" (hPa abs) minus ambient, in psi. Negative = vacuum.
+      formula: '(u16(A,B)*0.0078125 - (val.ambient ?? 101.3)) * 0.145038',
       unit: 'psi', decimals: 1, pollRateHz: 4, priority: 7,
-      warnAbove: 15, critAbove: 19,
+      warnAbove: 15, critAbove: 19, range: [-15, 30], maxJump: 12,
       enabled: true, verified: true,
-      note: 'Standard PID 010B (MAP). For bar use (A - (val.baro ?? 101.3)) / 100.',
+      note: 'For bar: (u16(A,B)*0.0078125 - (val.ambient ?? 101.3)) / 100',
     },
     {
       id: 'coolant', name: 'Coolant', display: 'tile',
-      header: '7E0', request: '0105', responseId: '7E8',
-      byteOffsets: [2], formula: 'A-40',
+      header: '7E0', request: '222013', responseId: '7E8',
+      byteOffsets: [3], formula: 'A*0.75-48', // "Kuehlmitteltemperatur"
       unit: '°C', decimals: 0, pollRateHz: 0.5, priority: 1,
       warnAbove: 110, critAbove: 118,
+      range: [-40, 140], maxJump: 8,
       enabled: false, verified: true,
     },
     {
@@ -122,6 +131,7 @@ export const DEFAULT_CONFIG = {
       byteOffsets: [3, 4], formula: 'u16(A,B)*0.1*0.264172', // "Tankfuellstand" litres -> US gal
       unit: 'gal', decimals: 1, pollRateHz: 0.2, priority: 1,
       warnBelow: 3, critBelow: 1.5,
+      range: [0, 22], maxJump: 1.5,
       enabled: true, verified: true,
     },
     {
@@ -129,6 +139,7 @@ export const DEFAULT_CONFIG = {
       header: '7E0', request: '222020', responseId: '7E8',
       byteOffsets: [3, 4], formula: 's16(A,B)*0.5/1000', // "Oeldruck" hPa -> bar
       unit: 'bar', decimals: 1, pollRateHz: 1, priority: 2,
+      range: [-0.5, 10], maxJump: 4,
       enabled: false, verified: true,
     },
     {
@@ -136,6 +147,7 @@ export const DEFAULT_CONFIG = {
       header: '7E0', request: '22201C', responseId: '7E8',
       byteOffsets: [3], formula: 'A*0.75-48', // "Ansauglufttemperatur im Saugrohr"
       unit: '°C', decimals: 0, pollRateHz: 0.5, priority: 1,
+      range: [-40, 120], maxJump: 15,
       enabled: false, verified: true,
     },
     {
@@ -143,6 +155,7 @@ export const DEFAULT_CONFIG = {
       header: '7E0', request: '222022', responseId: '7E8',
       byteOffsets: [3, 4], formula: 'u16(A,B)*0.02355', // "Batteriespannung"
       unit: 'V', decimals: 1, pollRateHz: 0.5, priority: 1,
+      range: [6, 17], maxJump: 3,
       enabled: false, verified: true,
     },
   ],
@@ -200,6 +213,23 @@ function migrate(c) {
     if (boost) boost.verified = true;
     if (!c.values.some((v) => v.id === 'fuel')) c.values.push(clone(DEFAULT_CONFIG.values.find((v) => v.id === 'fuel')));
     c.schema = 5;
+  }
+  if (c.schema < 6) {
+    // Engine values moved to MED17.7 DIDs so they can be batched; add glitch filters.
+    const def = (id) => clone(DEFAULT_CONFIG.values.find((v) => v.id === id));
+    for (const id of ['rpm', 'boost', 'ambient']) {
+      const i = c.values.findIndex((v) => v.id === id);
+      if (i >= 0) c.values[i] = { ...def(id), enabled: c.values[i].enabled !== false };
+      else c.values.push(def(id));
+    }
+    c.values = c.values.filter((v) => v.id !== 'baro');
+    for (const v of c.values) {
+      const d = DEFAULT_CONFIG.values.find((x) => x.id === v.id);
+      if (d && v.range == null && d.range) v.range = d.range;
+      if (d && v.maxJump == null && d.maxJump != null) v.maxJump = d.maxJump;
+    }
+    for (const k of ['batchUds', 'maxDidsPerRequest', 'fastResponse']) if (c[k] == null) c[k] = DEFAULT_CONFIG[k];
+    c.schema = 6;
   }
   try { localStorage.setItem(KEY, JSON.stringify(c)); } catch {}
   return c;

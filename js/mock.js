@@ -91,6 +91,23 @@ export class MockTransport extends EventTarget {
     return { rpm, sel, prog, gear, atf: 50 + Math.min(40, t / 10), oil: 85 + 10 * Math.sin(t / 30), clt: 88 };
   }
 
+  _did(did, s) {
+    const u16 = (v) => [(v >> 8) & 0xff, v & 0xff];
+    const glitch = Math.random() < 0.03; // occasional garbage to exercise the outlier filter
+    switch (did) {
+      case '2000': return u16(glitch ? 0xffff : Math.round(s.rpm * 4));
+      case '2095': return [Math.round((s.oil + 48) / 0.75)];
+      case '2013': return [Math.round((s.clt + 48) / 0.75)];
+      case '2030': return u16(Math.round(523 - (Date.now() - this.t0) / 1000));
+      case '2040': return u16(Math.round(1013 / 0.0390625));
+      case '2077': return u16(Math.round((1013 + Math.max(-600, (s.rpm - 1400) / 3)) / 0.078125));
+      case '2020': return u16(Math.round(3000 / 0.5));
+      case '201C': return [Math.round((30 + 48) / 0.75)];
+      case '2022': return u16(Math.round(14.1 / 0.02355));
+      default: return null;
+    }
+  }
+
   _handle(raw) {
     const cmd = raw.replace(/\s+/g, '').toUpperCase();
     if (!cmd) return this._reply(raw, []);
@@ -108,10 +125,24 @@ export class MockTransport extends EventTarget {
       return this._reply(raw, ['OK']);
     }
     if (!/^[0-9A-F]+$/.test(cmd)) return this._reply(raw, ['?']);
+    if (cmd.length % 2) return this._handle(cmd.slice(0, -1)); // ELM response-count digit
     const s = this._sim();
     const h = this.header;
     const toEngine = h === '7E0' || h === '7DF';
     const toTcu = h === '7E1';
+    if (h === '7E0' && /^22([0-9A-F]{4})+$/.test(cmd)) {
+      const out = [0x62];
+      for (let i = 2; i < cmd.length; i += 4) {
+        const did = cmd.slice(i, i + 4);
+        const d = this._did(did, s);
+        if (!d) return this._reply(raw, this._respond('7E8', [0x7f, 0x22, 0x31]));
+        out.push(parseInt(did.slice(0, 2), 16), parseInt(did.slice(2), 16), ...d);
+      }
+      return this._reply(raw, this._respond('7E8', out));
+    }
+    if (h === '7E0' && cmd === '1902' + '2D') return this._reply(raw, this._respond('7E8', [0x59, 0x02, 0xff, 0x01, 0x23, 0x00, 0x08, 0x03, 0x00, 0x00, 0x2c, 0x14, 0x03, 0x8f, 0x28]), 200);
+    if (toTcu && cmd === '1802FF00') return this._reply(raw, this._respond('7E9', [0x58, 0x01, 0x20, 0x00, 0x60]), 200);
+    if (cmd.startsWith('14')) return this._reply(raw, this._respond(toTcu ? '7E9' : '7E8', [0x54]));
     if (toEngine && cmd === '0100') return this._reply(raw, ['SEARCHING...', ...this._respond('7E8', [0x41, 0x00, 0xbe, 0x3f, 0xa8, 0x13])], 300);
     if (toEngine && cmd === '010C') { const v = Math.round(s.rpm * 4); return this._reply(raw, this._respond('7E8', [0x41, 0x0c, v >> 8, v & 0xff])); }
     if (toEngine && cmd === '0133') return this._reply(raw, this._respond('7E8', [0x41, 0x33, 100]));

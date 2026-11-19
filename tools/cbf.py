@@ -1,5 +1,5 @@
 # Python port of the parts of CaesarSuite (https://github.com/jglim/CaesarSuite, MIT License) needed to
-# read diagnostic services, request bytes and output scaling from Mercedes CBF files.
+# read diagnostic services, request bytes, output scaling and DTC tables from Mercedes CBF files.
 """Minimal Python port of CaesarSuite's CBF reader (jglim/CaesarSuite, MIT) - only what's
 needed to list diag services, their request bytes and output presentations/scales."""
 import struct, sys, json
@@ -16,7 +16,9 @@ class R:
     def bytes(self, n): v = self.d[self.p:self.p + n]; self.p += n; return v
     def cstr(self, at):
         e = self.d.index(b'\0', at)
-        return self.d[at:e].decode('latin-1')
+        raw = self.d[at:e]
+        try: return raw.decode('utf-8')
+        except UnicodeDecodeError: return raw.decode('latin-1')
 
 class BF:
     """bitflag-driven field reader"""
@@ -143,6 +145,11 @@ class ECU:
         vcd = blk(); vcd[3] = b.i32()
         pres = blk(); pres[3] = b.i32()
         ipres = blk(); ipres[3] = b.i32()
+        self.dtcs = []
+        for i in range(dtc[1]):
+            r.seek(dtc[0] + i * dtc[2]); off = r.i32(); a = dtc[0] + off
+            r.seek(a); db = BF(r, r.u16(), a)
+            self.dtcs.append((db.s(), db.i32(-1), db.i32(-1)))
         self.pres = self._pres(r, pres)
         self.ipres = self._pres(r, ipres)
         self.svcs = []

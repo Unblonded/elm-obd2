@@ -6,6 +6,7 @@ import { Poller } from './poller.js';
 import { Dashboard } from './dashboard.js';
 import { DebugPanel } from './debug.js';
 import { Finder } from './finder.js';
+import { Faults } from './faults.js';
 
 const VERSION = '1.0.0';
 const $ = (id) => document.getElementById(id);
@@ -39,6 +40,7 @@ poller.load(config);
 const dash = new Dashboard($('dash'));
 dash.build(config);
 const debug = new DebugPanel({ elm, poller, prefs, savePrefs });
+new Faults({ elm, root: $('faults'), note: (t) => debug.note(t) });
 new Finder({
   elm, poller, root: $('finder'), note: (t) => debug.note(t),
   onUse: (f) => {

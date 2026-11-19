@@ -70,3 +70,19 @@ They were generated from the Mercedes `.cbf` files with `tools/cbf_to_md.py` (a 
 
 Some transmission requests list more than one layout (different transmission variants share a request); the
 standard NAG2 layout for `21 30` is: byte 9 selector, 10 drive program, 12 actual/target gear (low/high nibble), 13 oil temp (A-50).
+
+## Efficient polling
+
+- Engine values are MED17.7 UDS DIDs (`22 xxxx`). Due DIDs on the same ECU are merged into one request
+  (`22 2000 2077 2095 …`, up to `maxDidsPerRequest`), and the reply is split back per DID. If the ECU rejects
+  multi-DID reads the app falls back to single requests automatically (`batchUds: false` disables it).
+- Single-frame replies use the ELM response-count digit (`010C1`) so the adapter returns immediately instead of
+  waiting for its timeout (`fastResponse: false` disables; auto-disabled if the clone answers `?`).
+- `ATSH` is only sent when the target ECU changes; the scheduler prefers groups on the current header.
+- Glitch filter per value: `range: [min,max]` and `maxJump` (a bigger jump must be confirmed by the next reading,
+  otherwise the last good value stays on screen).
+
+## Fault codes
+
+The **Faults** tab reads engine (UDS `19 02 2D`) and transmission (KWP `18 02 FF00`) codes, with descriptions from the
+CBF files (`js/dtc-data.js`, built by `tools/cbf_dtcs.py`), and can clear them (`14 FFFFFF` / `14 FF00`).

@@ -16,6 +16,7 @@ export class Poller extends EventTarget {
     this.completions = [];
     this.config = null;
     this._wake = null;
+    this.noBatch = new Set();
   }
 
   _emit(type, detail) { this.dispatchEvent(new CustomEvent(type, { detail })); }
@@ -34,7 +35,7 @@ export class Poller extends EventTarget {
       const key = `${header}|${request}|${responseId}`;
       let g = map.get(key);
       if (!g) {
-        g = { key, header, request, responseId, values: [], rateHz: 0, priority: 0, nextDue: 0, fails: 0, lastOk: 0, lastBytes: null, hist: [] };
+        g = { key, header, request, responseId, did: /^22[0-9A-F]{4}$/.test(request) ? request.slice(2) : null, dataLen: null, values: [], rateHz: 0, priority: 0, nextDue: 0, fails: 0, lastOk: 0, lastBytes: null, hist: [] };
         map.set(key, g);
       }
       g.values.push(v);
@@ -51,6 +52,7 @@ export class Poller extends EventTarget {
     if (this.running) return;
     this.running = true;
     for (const g of this.groups) { g.nextDue = 0; g.fails = 0; }
+    this.noBatch = new Set();
     this._loop();
   }
 
@@ -95,9 +97,69 @@ export class Poller extends EventTarget {
     }
   }
 
+  /** Other UDS DID groups on the same ECU that can ride along in one 22 request. */
+  _batchFor(g, now) {
+    if (!g.did || this.config.batchUds === false || this.noBatch.has(g.header)) return [g];
+    const maxDids = this.config.maxDidsPerRequest || 6;
+    let len = 1 + 2 + (g.dataLen ?? 4);
+    const out = [g];
+    const cands = this.groups
+      .filter((o) => o !== g && o.did && o.dataLen != null && o.header === g.header && o.responseId === g.responseId
+        && o.nextDue <= now + this._effectiveInterval(o) * 0.5)
+      .sort((x, y) => (x.nextDue - now) / x.intervalMs - (y.nextDue - now) / y.intervalMs);
+    for (const o of cands) {
+      if (out.length >= maxDids || len + 2 + o.dataLen > 62) break;
+      out.push(o); len += 2 + o.dataLen;
+    }
+    if (g.dataLen == null && out.length > 1) return [g]; // learn own length first
+    return out;
+  }
+
   async _poll(g) {
     const t0 = performance.now();
-    const r = await this.elm.request(g.header, g.request, g.responseId, { useCRA: this.config.useCRA });
+    const batch = this._batchFor(g, t0);
+    if (batch.length > 1) return this._pollBatch(batch, t0);
+    // single-frame reply known -> let the ELM return immediately (response-count digit)
+    const single = this.config.fastResponse !== false && g.lastBytes && g.lastBytes.length <= 7;
+    const r = await this.elm.request(g.header, g.request, g.responseId, { useCRA: this.config.useCRA, single });
+    this._finishGroup(g, r, t0);
+  }
+
+  async _pollBatch(batch, t0) {
+    const g0 = batch[0];
+    const req = `22${batch.map((g) => g.did).join('')}`;
+    const replyLen = 1 + batch.reduce((n, g) => n + 2 + (g.dataLen ?? 99), 0);
+    const count = this.config.fastResponse !== false && !this.elm.noCountDigit && replyLen <= 7 ? '1' : '';
+    const opts = { header: g0.header, cra: this.config.useCRA ? g0.responseId : null };
+    let res = await this.elm.send(req + count, opts);
+    if (count && res.errors.includes('UNKNOWN_CMD')) { this.elm.noCountDigit = true; res = await this.elm.send(req, opts); }
+    if (res.error === 'DISCONNECTED' || res.error === 'RESET') return;
+    const msg = (res.msgs || []).find((m) => (!m.header || m.header === g0.responseId) && m.bytes[0] === 0x62);
+    const parts = msg && this._splitDids(msg.bytes, batch);
+    if (!parts) {
+      // ECU rejected / unexpected layout: stop batching on this ECU, fall back to single requests
+      this.noBatch.add(g0.header);
+      this.elm._emit('note', `Multi-DID read not accepted by ${g0.header} (${res.error || 'NRC/len'}); using single requests`);
+      return;
+    }
+    batch.forEach((g, i) => this._finishGroup(g, { ok: true, bytes: parts[i] }, t0));
+  }
+
+  _splitDids(b, batch) {
+    let p = 1;
+    const out = [];
+    for (const g of batch) {
+      const hi = parseInt(g.did.slice(0, 2), 16), lo = parseInt(g.did.slice(2), 16);
+      if (b[p] !== hi || b[p + 1] !== lo) return null;
+      const n = g.dataLen;
+      if (p + 2 + n > b.length) return null;
+      out.push([0x62, hi, lo, ...b.slice(p + 2, p + 2 + n)]);
+      p += 2 + n;
+    }
+    return p === b.length ? out : null;
+  }
+
+  _finishGroup(g, r, t0) {
     const now = performance.now();
     g.nextDue = Math.max(t0 + this._effectiveInterval(g), now);
     if (r.error === 'DISCONNECTED' || r.error === 'RESET') return;
@@ -109,6 +171,7 @@ export class Poller extends EventTarget {
       g.hist.push(now);
       if (g.hist.length > 20) g.hist.shift();
       g.lastBytes = r.bytes;
+      if (g.did) g.dataLen = r.bytes.length - 3;
       g.nextDue = t0 + g.intervalMs;
       for (const v of g.values) this._update(v, g, r.bytes);
     } else {
@@ -125,17 +188,41 @@ export class Poller extends EventTarget {
   }
 
   _update(v, g, bytes) {
-    const s = { ts: performance.now(), status: 'ok', error: null, hz: this._hz(g) };
+    const prev = this.state.get(v.id) || {};
+    const s = { ...prev, ts: performance.now(), status: 'ok', error: null, hz: this._hz(g) };
+    let val;
     try {
-      const val = evalValue(v, bytes, this.values());
-      s.value = val;
-      s.label = mapLabel(v, val);
-      if (v.validRange && (val < v.validRange[0] || val > v.validRange[1])) s.status = 'invalid';
+      val = evalValue(v, bytes, this.values());
     } catch (e) {
-      s.status = 'error';
-      s.error = e.message;
+      this.state.set(v.id, { ...prev, status: 'error', error: e.message });
+      return;
     }
+    if (typeof val === 'number' && !this._plausible(v, val, prev)) {
+      // glitch: keep showing the previous value
+      this.state.set(v.id, { ...prev, hz: s.hz, rejected: (prev.rejected || 0) + 1 });
+      return;
+    }
+    s.value = val;
+    s.label = mapLabel(v, val);
+    s.rejected = 0;
+    s.candidate = null;
+    if (v.validRange && (val < v.validRange[0] || val > v.validRange[1])) s.status = 'invalid';
     this.state.set(v.id, s);
+  }
+
+  /**
+   * Reject readings outside the value's plausible range, or that jump more than maxJump from the
+   * last accepted value - unless the next reading confirms the jump (real change, not a glitch).
+   */
+  _plausible(v, val, prev) {
+    if (!Number.isFinite(val)) return false;
+    if (v.range && (val < v.range[0] || val > v.range[1])) return false;
+    if (v.maxJump == null || prev.value == null || typeof prev.value !== 'number') return true;
+    if (Math.abs(val - prev.value) <= v.maxJump) return true;
+    const c = prev.candidate;
+    if (c != null && Math.abs(val - c) <= v.maxJump) return true; // confirmed by 2nd reading
+    prev.candidate = val;
+    return false;
   }
 
   /** Latest numeric value of every OK value, keyed by id (for val.<id> in formulas). */
