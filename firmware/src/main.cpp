@@ -17,7 +17,7 @@ static uint8_t brightness = 255;
 static uint32_t clearArmedAt = 0;
 
 // Remember the page and light level across power cycles (saved as soon as they change
-// to keep flash wear low).
+// so a quick power-off never loses them).
 static Preferences uiPrefs;
 static int savedPage = -1;
 static uint8_t savedBrightness = 255;
