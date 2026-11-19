@@ -16,7 +16,7 @@ static float rpmShown = 0;
 static uint8_t brightness = 255;
 static uint32_t clearArmedAt = 0;
 
-// Remember the page and brightness across power cycles (written 2 s after the last change
+// Remember the page and light level across power cycles (saved as soon as they change
 // to keep flash wear low).
 static Preferences uiPrefs;
 static int savedPage = -1;
@@ -30,10 +30,10 @@ static void saveUi() {
     Serial.printf("[UI] page %d saved (%s)\n", p, n ? "ok" : "FAILED");
     savedPage = p;
   }
-  // brightness: wait until the user stops tapping through levels
   if (brightness != savedBrightness) {
-    if (!changedAt) changedAt = millis();
-    else if (millis() - changedAt > 1500) { uiPrefs.putUChar("bright", brightness); savedBrightness = brightness; changedAt = 0; }
+    size_t n = uiPrefs.putUChar("bright", brightness);
+    Serial.printf("[UI] light %d saved (%s)\n", brightness, n ? "ok" : "FAILED");
+    savedBrightness = brightness;
   }
 }
 
