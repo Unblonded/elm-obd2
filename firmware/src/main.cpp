@@ -94,7 +94,7 @@ static void drawDrive() {
   else snprintf(v, sizeof(v), "----");
   fillRound(4, 20, 206, 140, 12, C::CARD);
   text(F_LABEL, 14, 38, "RPM", C::MUTED);
-  text(F_BIG, 196, 112, v, rpmShown >= 6200 ? C::CRIT : C::TEXT, RIGHT);
+  text(F_BIG, 4 + 206 / 2, 112, v, rpmShown >= 6200 ? C::CRIT : C::TEXT, CENTER);  // centered in its box
   // bar
   const int bx = 14, by = 128, bw = 186, bh = 16;
   fillRound(bx, by, bw, bh, 6, C::TRACK);
