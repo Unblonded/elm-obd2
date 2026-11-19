@@ -157,6 +157,11 @@ export class Dashboard {
         if (s.status === 'error') { if (s.value == null) cls += ' err'; foot = s.error || 'error'; }
         else if (s.status === 'invalid') foot = 'out of range';
         else foot = s.hz ? `${s.hz.toFixed(1)} Hz` : 'ok';
+        if (d.peakHoldSec && typeof s.value === 'number') {
+          const now = performance.now();
+          if (t.peak == null || s.value >= t.peak || now - t.peakAt > d.peakHoldSec * 1000) { t.peak = s.value; t.peakAt = now; }
+          if (t.peak > 0.5) foot = `max ${t.peak.toFixed(d.decimals ?? 0)} ${d.unit || ''}`;
+        }
       }
       const key = cls + valHtml + foot;
       if (key !== t.last) {

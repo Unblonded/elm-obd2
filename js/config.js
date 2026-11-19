@@ -14,7 +14,7 @@
 // Values that share header+request+responseId are fetched with ONE request.
 
 export const DEFAULT_CONFIG = {
-  schema: 6,
+  schema: 7,
   maxRequestsPerSec: 18,      // hard cap on commands/sec (ATSH included)
   commandTimeoutMs: 1200,
   staleAfterMs: 3000,
@@ -107,12 +107,13 @@ export const DEFAULT_CONFIG = {
     },
     {
       id: 'boost', name: 'Boost', display: 'tile',
-      header: '7E0', request: '222077', responseId: '7E8',
+      header: '7E0', request: '222018', responseId: '7E8',
       byteOffsets: [3, 4],
-      // "Ladedrucksensor P2 vor Drosselklappe" (hPa abs) minus ambient, in psi. Negative = vacuum.
+      // "Saugrohrdruck" manifold pressure after the throttle (hPa abs) minus ambient, in psi. Negative = vacuum.
       formula: '(u16(A,B)*0.0078125 - (val.ambient ?? 101.3)) * 0.145038',
       unit: 'psi', decimals: 1, pollRateHz: 4, priority: 7,
       warnAbove: 15, critAbove: 19, range: [-15, 30], maxJump: 12,
+      peakHoldSec: 30, // show the max reached; resets 30 s after the peak
       enabled: true, verified: true,
       note: 'For bar: (u16(A,B)*0.0078125 - (val.ambient ?? 101.3)) / 100',
     },
@@ -137,15 +138,15 @@ export const DEFAULT_CONFIG = {
     {
       id: 'oilPressure', name: 'Oil Press', display: 'tile',
       header: '7E0', request: '222020', responseId: '7E8',
-      byteOffsets: [3, 4], formula: 's16(A,B)*0.5/1000', // "Oeldruck" hPa -> bar
+      byteOffsets: [3, 4], formula: 's16(A,B)*0.5/1000', // "Oeldruck" hPa -> bar (M278 has only a pressure switch: reads 0)
       unit: 'bar', decimals: 1, pollRateHz: 1, priority: 2,
       range: [-0.5, 10], maxJump: 4,
       enabled: false, verified: true,
     },
     {
       id: 'intakeTemp', name: 'Intake Air', display: 'tile',
-      header: '7E0', request: '22201C', responseId: '7E8',
-      byteOffsets: [3], formula: 'A*0.75-48', // "Ansauglufttemperatur im Saugrohr"
+      header: '7E0', request: '222014', responseId: '7E8',
+      byteOffsets: [3], formula: 'A*0.75-48', // "Ansauglufttemperatur in HFM"
       unit: '°C', decimals: 0, pollRateHz: 0.5, priority: 1,
       range: [-40, 120], maxJump: 15,
       enabled: false, verified: true,
@@ -230,6 +231,14 @@ function migrate(c) {
     }
     for (const k of ['batchUds', 'maxDidsPerRequest', 'fastResponse']) if (c[k] == null) c[k] = DEFAULT_CONFIG[k];
     c.schema = 6;
+  }
+  if (c.schema < 7) {
+    const def = (id) => clone(DEFAULT_CONFIG.values.find((v) => v.id === id));
+    for (const id of ['boost', 'intakeTemp']) {
+      const i = c.values.findIndex((v) => v.id === id);
+      if (i >= 0) c.values[i] = { ...def(id), enabled: c.values[i].enabled !== false };
+    }
+    c.schema = 7;
   }
   try { localStorage.setItem(KEY, JSON.stringify(c)); } catch {}
   return c;
