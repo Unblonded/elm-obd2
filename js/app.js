@@ -89,7 +89,11 @@ function isStandalone() {
 }
 function noBluetoothMessage() {
   if (isIOS() && isStandalone()) return ['Home-screen apps on iPhone run on Safari\'s engine, which has no Bluetooth. Open this link in the Bluefy app instead.', true];
-  if (isIOS()) return ['This browser has no Web Bluetooth. Open this link in the Bluefy app (free, App Store).', true];
+  if (isIOS()) {
+    const m = navigator.userAgent.match(/CriOS|FxiOS|EdgiOS/);
+    const name = m ? { CriOS: 'Chrome', FxiOS: 'Firefox', EdgiOS: 'Edge' }[m[0]] : 'Safari';
+    return [`${name} on iPhone can't use Bluetooth (Apple blocks it for every iOS browser engine). Open this link in the free Bluefy app instead.`, true];
+  }
   if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return ['Web Bluetooth needs HTTPS. Open the https:// address.', false];
   return ['Web Bluetooth unavailable. Use Chrome on desktop/Android, or enable Demo mode in Settings.', false];
 }
